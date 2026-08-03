@@ -321,6 +321,7 @@ class _BookmarkScreenState extends State<BookmarkScreen> {
                   _removeBookmark(article);
                 },
                 heroTag: 'bookmark-${article.id}',
+                articleList: _bookmarkedArticles,
               ),
             ),
           ).then((_) {
@@ -344,6 +345,7 @@ class _BookmarkScreenState extends State<BookmarkScreen> {
                     child: CachedNetworkImage(
                       imageUrl: article.urlToImage ?? '',
                       fit: BoxFit.cover,
+                      memCacheWidth: 200,
                       placeholder: (context, url) => Container(
                         color: isDark ? Colors.grey[800] : Colors.grey[200],
                         child: const Center(

@@ -121,7 +121,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     }
   }
 
-  void _navigateToArticle(BuildContext context, Article article) {
+  void _navigateToArticle(BuildContext context, Article article, List<Article> articlesList) {
     if (_isEditing) return;
     final heroTag = 'notif-article-${article.id}';
     Navigator.push(
@@ -132,6 +132,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           isBookmarked: false,
           onBookmarkToggle: () {},
           heroTag: heroTag,
+          articleList: articlesList,
         ),
       ),
     );
@@ -496,7 +497,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                           if (_isEditing) {
                             _toggleSelection(article.id);
                           } else {
-                            _navigateToArticle(context, article);
+                            _navigateToArticle(context, article, notificationArticles);
                           }
                         },
                         child: Row(
@@ -524,6 +525,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                   onBookmarkToggle: () {},
                                   index: index,
                                   layout: ArticleCardLayout.layout4,
+                                  articleList: notificationArticles,
                                 ),
                               ),
                             ),

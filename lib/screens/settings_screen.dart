@@ -1,11 +1,7 @@
-import 'dart:convert';
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/theme_provider.dart';
-import '../services/notification_service.dart';
-import '../repositories/article_repository.dart';
 import 'display_settings_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -16,11 +12,7 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  final NotificationService _notificationService = NotificationService();
-  final ArticleRepository _articleRepository = ArticleRepository();
-  
   bool _notificationsEnabled = true;
-  bool _isTestingNotification = false;
   
   // Notification category toggles
   Map<String, bool> _categoryToggles = {};
@@ -91,74 +83,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  Future<void> _sendTestNotification() async {
-    if (_isTestingNotification) return;
-    
-    setState(() {
-      _isTestingNotification = true;
-    });
 
-    try {
-      final articles = await _articleRepository.getArticlesByCategory(
-        null, 
-        page: 1, 
-        pageSize: 20,
-      );
-      
-      if (articles.isEmpty) {
-        _showSnackBar('Tidak ada artikel tersedia', isError: true);
-        return;
-      }
-
-      final randomArticle = articles[Random().nextInt(articles.length)];
-
-      await _notificationService.showBreakingNewsNotification(
-        'Test Notifikasi Owrite',
-        randomArticle.title.length > 100 
-            ? '${randomArticle.title.substring(0, 100)}...' 
-            : randomArticle.title,
-        payload: jsonEncode({
-          'type': 'article',
-          'id': randomArticle.id,
-          'url': randomArticle.url,
-        }),
-      );
-
-      _showSnackBar('Notifikasi terkirim! Cek notification tray.');
-    } catch (e) {
-      debugPrint('Error sending test notification: $e');
-      _showSnackBar('Gagal mengirim notifikasi', isError: true);
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isTestingNotification = false;
-        });
-      }
-    }
-  }
-
-  void _showSnackBar(String message, {bool isError = false}) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).removeCurrentSnackBar();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            Icon(
-              isError ? Icons.error_outline : Icons.check_circle_outline,
-              color: isError ? Colors.red[300] : Colors.green[300],
-            ),
-            const SizedBox(width: 12),
-            Expanded(child: Text(message, style: const TextStyle(color: Colors.white))),
-          ],
-        ),
-        backgroundColor: const Color(0xFF333333),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        duration: const Duration(seconds: 3),
-      ),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -207,61 +132,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 color: cardColor,
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Column(
-                children: [
-                  // Main notification toggle
-                  _buildMainToggle(isDark, textColor, subtitleColor!),
-                  
-                  Divider(color: dividerColor, height: 1, indent: 16, endIndent: 16),
-                  
-                  // Test notification button
-                  ListTile(
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                    leading: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: isDark ? Colors.grey[700] : Colors.grey[200],
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Icon(
-                        Icons.science_outlined,
-                        color: _notificationsEnabled ? (isDark ? const Color(0xFFCCFF00) : Colors.black) : subtitleColor,
-                        size: 24,
-                      ),
-                    ),
-                    title: Text(
-                      'Test Notifikasi',
-                      style: TextStyle(
-                        color: _notificationsEnabled ? textColor : disabledColor,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 16,
-                      ),
-                    ),
-                    subtitle: Text(
-                      'Kirim notifikasi dengan berita acak',
-                      style: TextStyle(
-                        color: _notificationsEnabled ? subtitleColor : disabledColor,
-                        fontSize: 13,
-                      ),
-                    ),
-                    trailing: _isTestingNotification
-                        ? SizedBox(
-                            width: 24,
-                            height: 24,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFCCFF00)),
-                            ),
-                          )
-                        : Icon(
-                            Icons.send,
-                            color: _notificationsEnabled ? (isDark ? const Color(0xFFCCFF00) : Colors.black) : subtitleColor,
-                          ),
-                    onTap: _notificationsEnabled ? _sendTestNotification : null,
-                    enabled: _notificationsEnabled,
-                  ),
-                ],
-              ),
+              child: _buildMainToggle(isDark, textColor, subtitleColor!),
             ),
             
             const SizedBox(height: 24),
@@ -361,7 +232,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       children: [
                         Text('Owrite', style: TextStyle(color: textColor, fontWeight: FontWeight.bold, fontSize: 18)),
                         const SizedBox(height: 4),
-                        Text('Versi 1.0.5', style: TextStyle(color: subtitleColor, fontSize: 14)),
+                        Text('Versi 1.0.6', style: TextStyle(color: subtitleColor, fontSize: 14)),
                       ],
                     ),
                   ),

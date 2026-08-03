@@ -979,6 +979,7 @@ class _LocalHistoryScreenState extends State<LocalHistoryScreen> {
                   child: CachedNetworkImage(
                     imageUrl: article.urlToImage ?? '',
                     fit: BoxFit.cover,
+                    memCacheWidth: 200,
                     placeholder: (context, url) => Container(
                       color: isDark ? Colors.grey[800] : Colors.grey[200],
                       child: const Center(

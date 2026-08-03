@@ -1749,6 +1749,7 @@ class _HomeScreenState extends State<HomeScreen>
                  index: 0,
                  layout: ArticleCardLayout.layoutFullscreen, // Menggunakan Fullscreen Layout
                  onArticleRead: _onArticleRead,
+                 articleList: articlesForView,
                ),
 
             // 💡 REORDERED: Slider now appears second (after the first news)
@@ -1937,6 +1938,7 @@ class _HomeScreenState extends State<HomeScreen>
              layout: layout,
              // 💡 PASS CALLBACK DISINI
              onArticleRead: _onArticleRead, 
+             articleList: articles,
            );
         }).toList(),
       ),
@@ -2269,6 +2271,7 @@ class _HomeScreenState extends State<HomeScreen>
                         onArticleRead: _onArticleRead,
                         titleMaxLines: 3,
                         imageOnLeft: true,
+                        articleList: todayArticles,
                       ),
                     ),
 
@@ -2298,6 +2301,7 @@ class _HomeScreenState extends State<HomeScreen>
                             layout: ArticleCardLayout.defaultCard, 
                             onArticleRead: _onArticleRead,
                             isTodayGrid: true,
+                            articleList: todayArticles,
                           );
                         },
                       ),
@@ -2376,6 +2380,7 @@ class _HomeScreenState extends State<HomeScreen>
                   index: index,
                   layout: layout,
                   onArticleRead: _onArticleRead,
+                  articleList: articles,
                 ),
                 
                 // 💡 INSERT POPULAR & READING HISTORY HERE (after index 4, i.e., 5th item)
@@ -2532,7 +2537,8 @@ class _HomeScreenState extends State<HomeScreen>
                 onBookmarkToggle: () => _handleBookmarkTap(context, article),
                 index: index,
                 layout: cardLayout,
-                onArticleRead: _onArticleRead, // Pass here too
+                onArticleRead: _onArticleRead,
+                articleList: articlesToShow,
               );
             }).toList(),
 
@@ -2581,6 +2587,7 @@ class _HomeScreenState extends State<HomeScreen>
                   ? CachedNetworkImage(
                       imageUrl: article.urlToImage!,
                       fit: BoxFit.cover,
+                      memCacheWidth: 400,
                       placeholder: (context, url) => Container(
                         color: isDark ? Colors.grey[800] : Colors.grey[300],
                         child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
@@ -2663,6 +2670,7 @@ class _HomeScreenState extends State<HomeScreen>
                 index: 0,
                 layout: ArticleCardLayout.layout3,
                 onArticleRead: _onArticleRead,
+                articleList: popularArticles,
               ),
             ),
           ),
@@ -2728,8 +2736,8 @@ class _ArticleSliderState extends State<ArticleSlider> {
                   onBookmarkToggle: () => widget.onBookmarkToggle(index, article),
                   index: index,
                   layout: ArticleCardLayout.layoutSlider,
-                  // 💡 Teruskan callback ke ArticleCard di dalam Slider
                   onArticleRead: widget.onArticleRead,
+                  articleList: widget.articles,
                 ),
               );
             },
@@ -2924,6 +2932,7 @@ class _CategoryLatestScreenState extends State<CategoryLatestScreen> {
                     onBookmarkToggle: () => _toggleBookmark(article), 
                     index: index,
                     layout: ArticleCardLayout.layout3,
+                    articleList: articles,
                   ),
                 );
               },
@@ -2990,6 +2999,7 @@ class SeeAllArticlesScreen extends StatelessWidget {
                     onBookmarkToggle: () => onBookmarkToggle(article),
                     index: index,
                     layout: ArticleCardLayout.layout3,
+                    articleList: articles,
                   );
                 },
               ),

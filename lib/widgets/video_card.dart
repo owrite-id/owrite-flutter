@@ -55,6 +55,7 @@ class VideoCard extends StatelessWidget {
                   child: CachedNetworkImage(
                     imageUrl: video.thumbnailUrl,
                     fit: BoxFit.cover,
+                    memCacheWidth: 300,
                     placeholder: (context, url) => Container(
                       color: isDark ? Colors.grey[850] : Colors.grey[300],
                       child: const Center(
@@ -217,6 +218,7 @@ class VideoCard extends StatelessWidget {
                           child: CachedNetworkImage(
                             imageUrl: video.thumbnailUrl,
                             fit: BoxFit.cover,
+                            memCacheWidth: 400,
                             placeholder: (context, url) => Container(
                               color: isDark ? const Color(0xFF2A2A2A) : Colors.grey[200],
                               child: const Center(
@@ -448,6 +450,7 @@ class VideoCard extends StatelessWidget {
                 child: CachedNetworkImage(
                   imageUrl: video.thumbnailUrl,
                   fit: BoxFit.cover,
+                  memCacheWidth: 400,
                   placeholder: (context, url) => Container(
                     color: isDark ? Colors.grey[800] : Colors.grey[300],
                     child: const Center(

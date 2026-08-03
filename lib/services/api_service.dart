@@ -118,6 +118,51 @@ class ApiService {
     return _getArticles('/posts', stringQueryParameters);
   }
 
+  Future<Article?> getArticleBySlugOrUrlOrId(String idOrUrlOrSlug) async {
+    try {
+      final numericId = int.tryParse(idOrUrlOrSlug);
+      if (numericId != null && numericId > 0) {
+        final uri = Uri.parse('$_baseUrl/posts/$numericId?_embed=1');
+        final response = await _client.get(uri).timeout(const Duration(seconds: 10));
+        if (response.statusCode == 200) {
+          final json = jsonDecode(response.body);
+          if (json is Map<String, dynamic>) {
+            return Article.fromWordPress(json);
+          }
+        }
+      }
+
+      String slug = idOrUrlOrSlug.trim();
+      if (slug.contains('owrite.id')) {
+        final uri = Uri.parse(slug);
+        final segments = uri.pathSegments.where((s) => s.isNotEmpty).toList();
+        if (segments.isNotEmpty) {
+          slug = segments.last;
+        }
+      }
+
+      final slugUri = Uri.parse('$_baseUrl/posts').replace(queryParameters: {
+        'slug': slug,
+        '_embed': '1',
+      });
+      final response = await _client.get(slugUri).timeout(const Duration(seconds: 10));
+      if (response.statusCode == 200) {
+        final list = jsonDecode(response.body);
+        if (list is List && list.isNotEmpty) {
+          return Article.fromWordPress(list.first as Map<String, dynamic>);
+        }
+      }
+
+      final searchResults = await searchArticles(query: slug, pageSize: 1);
+      if (searchResults.isNotEmpty) {
+        return searchResults.first;
+      }
+    } catch (e) {
+      print("Error fetching full article content by slug/url/id: $e");
+    }
+    return null;
+  }
+
   Future<List<Article>> _getArticles(
       String endpoint, Map<String, String> queryParameters) async {
     try {

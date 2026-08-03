@@ -5,7 +5,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'dart:math';
 import 'package:http/http.dart' as http;
-import 'package:audioplayers/audioplayers.dart';
+import 'package:audioplayers/audioplayers.dart' hide Source;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
@@ -14,6 +14,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:html/parser.dart' show parse;
+import 'package:html/dom.dart' as dom;
 import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -35,12 +36,15 @@ import 'login_screen.dart';
 import 'quick_screen.dart';
 import 'in_app_browser_screen.dart';
 import '../services/reading_tracker_service.dart';
+import '../widgets/card_baca_juga.dart';
 
 class ArticleDetailScreen extends StatefulWidget {
   final Article article;
   final String heroTag;
   final bool isBookmarked;
   final VoidCallback onBookmarkToggle;
+  final List<Article>? articleList;
+  final int? initialIndex;
 
   const ArticleDetailScreen({
     Key? key,
@@ -48,6 +52,8 @@ class ArticleDetailScreen extends StatefulWidget {
     required this.heroTag,
     required this.isBookmarked,
     required this.onBookmarkToggle,
+    this.articleList,
+    this.initialIndex,
   }) : super(key: key);
 
   @override
@@ -56,7 +62,10 @@ class ArticleDetailScreen extends StatefulWidget {
 
 class _ArticleDetailScreenState extends State<ArticleDetailScreen>
     with TickerProviderStateMixin {
-  final String _geminiApiKey = dotenv.env['GOOGLE_TTS_API_KEY'] ?? '';
+  String get _geminiApiKey {
+    const compileKey = String.fromEnvironment('GOOGLE_TTS_API_KEY');
+    return compileKey.isNotEmpty ? compileKey : (dotenv.env['GOOGLE_TTS_API_KEY'] ?? '');
+  }
   final ApiService _apiService = ApiService();
   late ScrollController _scrollController;
   late AnimationController _fadeController;
@@ -83,13 +92,15 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen>
   String? _relatedError;
 
   bool _isSwiping = false;
+  double _dragDistance = 0.0;
+  bool _isFetchingMorePool = false;
 
   void _navigateToQuickScreen() async {
     if (_isSpeaking || _isLoading) {
       await _stopSpeaking();
     }
 
-    Navigator.of(context).push(
+    await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => QuickScreen(
           bookmarkedArticles: [],
@@ -104,6 +115,8 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen>
         ),
       ),
     );
+    // Kembalikan tampilan status bar/notch saat keluar dari QuickScreen
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   }
 
   void _navigateToQuickScreenOriginal() async {
@@ -111,7 +124,7 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen>
       await _stopSpeaking();
     }
 
-    Navigator.of(context).push(
+    await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => QuickScreen(
           bookmarkedArticles: [],
@@ -121,11 +134,40 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen>
         ),
       ),
     );
+    // Kembalikan tampilan status bar/notch saat keluar dari QuickScreen
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+  }
+
+  late Article _currentArticle;
+  bool _isLoadingFullContent = false;
+
+  void _fetchFullArticleContentIfNeeded() async {
+    if (_currentArticle.content == null || _currentArticle.content!.trim().isEmpty) {
+      if (mounted) setState(() => _isLoadingFullContent = true);
+      try {
+        final idOrUrl = _currentArticle.url.isNotEmpty ? _currentArticle.url : _currentArticle.id;
+        final fetched = await _apiService.getArticleBySlugOrUrlOrId(idOrUrl);
+        if (fetched != null && mounted) {
+          setState(() {
+            _currentArticle = fetched;
+            _isLoadingFullContent = false;
+          });
+        } else if (mounted) {
+          setState(() => _isLoadingFullContent = false);
+        }
+      } catch (e) {
+        if (mounted) setState(() => _isLoadingFullContent = false);
+      }
+    }
   }
 
   @override
   void initState() {
     super.initState();
+    _currentArticle = widget.article;
+    _fetchFullArticleContentIfNeeded();
+    // Kunci tampilan status bar / notch agar 100% selalu terlihat di halaman detail artikel
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     _checkLoginStatus();
     _addToHistory();
     _scrollController = ScrollController();
@@ -153,6 +195,8 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen>
     );
     _bottomBarAnimController.value = 0.0;
 
+    _initArticlesPool();
+    _fetchArticlesPoolIfEmpty();
     _setupAudioPlayerListener();
     _scrollController.addListener(_scrollListener);
     _fetchRelatedArticles();
@@ -358,79 +402,193 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen>
     }
   }
 
-  Future<void> _fetchAndNavigateToRandomArticle() async {
-    if (_isSwiping) return;
-    if (kIsWeb) return;
-    if (!Platform.isAndroid && !Platform.isIOS) return;
+  List<Article> _articlesPool = [];
+  int _currentArticleIndex = -1;
 
-    if (mounted) {
-      setState(() {
-        _isSwiping = true;
-      });
+  void _initArticlesPool() {
+    List<Article> rawList = [];
+    if (widget.articleList != null && widget.articleList!.isNotEmpty) {
+      rawList = List<Article>.from(widget.articleList!);
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: const [
-            CircularProgressIndicator(),
-            SizedBox(width: 16),
-            Text("Mencari artikel lain..."),
-          ],
-        ),
-        duration: const Duration(seconds: 10),
-      ),
-    );
+    if (!rawList.any((a) => a.id == widget.article.id)) {
+      rawList.add(widget.article);
+    }
 
+    final seenIds = <String>{};
+    rawList.retainWhere((a) => seenIds.add(a.id));
+
+    // Sort by publishedAt DESCENDING (Index 0 = Berita Paling Baru, Index N-1 = Berita Paling Lama)
+    rawList.sort((a, b) => b.publishedAt.compareTo(a.publishedAt));
+
+    _articlesPool = rawList;
+    _currentArticleIndex = _articlesPool.indexWhere((a) => a.id == widget.article.id);
+    if (_currentArticleIndex == -1) {
+      _currentArticleIndex = 0;
+    }
+  }
+
+  Future<void> _fetchArticlesPoolIfEmpty() async {
     try {
-      final randomPage = Random().nextInt(3) + 1;
-      final articles = await _apiService.getArticlesByCategory(
-        null,
-        page: randomPage,
-        pageSize: 50,
-      );
-
-      final otherArticles = articles.where((a) => a.id != widget.article.id).toList();
-
-      if (otherArticles.isEmpty) {
-        throw Exception("Tidak menemukan artikel lain.");
+      // Ambil berita terbaru umum dan kategori terkait untuk memperkaya pool
+      final generalFetched = await _apiService.getArticlesByCategory(null, pageSize: 50);
+      List<Article> categoryFetched = [];
+      if (widget.article.category.isNotEmpty) {
+        categoryFetched = await _apiService.getArticlesByCategory(
+          widget.article.category,
+          pageSize: 30,
+        );
       }
 
-      final randomArticle = otherArticles[Random().nextInt(otherArticles.length)];
-      final String heroTag = 'swipe_${randomArticle.id}_${UniqueKey().toString()}';
+      final allFetched = [...generalFetched, ...categoryFetched];
 
-      if (_isSpeaking || _isLoading) {
-        await _stopSpeaking();
+      if (allFetched.isNotEmpty && mounted) {
+        setState(() {
+          List<Article> combined = List<Article>.from(_articlesPool);
+          for (var a in allFetched) {
+            if (!combined.any((item) => item.id == a.id)) {
+              combined.add(a);
+            }
+          }
+          final seenIds = <String>{};
+          combined.retainWhere((a) => seenIds.add(a.id));
+          combined.sort((a, b) => b.publishedAt.compareTo(a.publishedAt));
+          _articlesPool = combined;
+          _currentArticleIndex = _articlesPool.indexWhere((a) => a.id == widget.article.id);
+          if (_currentArticleIndex == -1) _currentArticleIndex = 0;
+        });
       }
-
-      ScaffoldMessenger.of(context).hideCurrentSnackBar();
-
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (context) => ArticleDetailScreen(
-            article: randomArticle,
-            heroTag: heroTag,
-            isBookmarked: false, 
-            onBookmarkToggle: widget.onBookmarkToggle, 
-          ),
-        ),
-      );
-
     } catch (e) {
-      ScaffoldMessenger.of(context).hideCurrentSnackBar();
-      if (mounted) _showErrorSnackBar("Gagal memuat artikel lain.");
-      if (mounted) setState(() => _isSwiping = false);
+      debugPrint('Error prefetching articles pool: $e');
     }
   }
 
   void _handleHorizontalSwipe(DragEndDetails details) {
     if (kIsWeb) return;
     if (!Platform.isAndroid && !Platform.isIOS) return;
+    if (_isSwiping) return;
+
     final double velocity = details.primaryVelocity ?? 0;
-    if (velocity.abs() > 300) {
-      _fetchAndNavigateToRandomArticle();
+    double effectiveDelta = velocity != 0 ? velocity : _dragDistance;
+
+    if (velocity.abs() < 150 && _dragDistance.abs() < 50) {
+      _dragDistance = 0.0;
+      return;
     }
+
+    if (effectiveDelta < 0) {
+      // Geser Ke Kiri (Drag Finger Right-to-Left / dx < 0) -> Terbaru ke yang Lama
+      _navigateToOlderArticle();
+    } else if (effectiveDelta > 0) {
+      // Geser Ke Kanan (Drag Finger Left-to-Right / dx > 0) -> Lama ke yang Terbaru
+      _navigateToNewerArticle();
+    }
+
+    _dragDistance = 0.0;
+  }
+
+  void _navigateToNewerArticle() async {
+    if (_isSwiping) return;
+
+    if ((_articlesPool.length <= 1 || _currentArticleIndex <= 0) && !_isFetchingMorePool) {
+      if (mounted) setState(() => _isFetchingMorePool = true);
+      await _fetchArticlesPoolIfEmpty();
+      if (mounted) setState(() => _isFetchingMorePool = false);
+    }
+
+    if (_currentArticleIndex <= 0) {
+      // Sudah di berita paling baru!
+      if (mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Ini adalah berita paling baru"),
+            duration: Duration(milliseconds: 1200),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+      return;
+    }
+
+    final targetIndex = _currentArticleIndex - 1;
+    final targetArticle = _articlesPool[targetIndex];
+    // Swipe Right (Geser ke Kanan / Lama ke Terbaru): Artikel baru masuk dari kiri ke kanan (isSlideRight: true)
+    _switchToArticle(targetArticle, targetIndex, isSlideRight: true);
+  }
+
+  void _navigateToOlderArticle() async {
+    if (_isSwiping) return;
+
+    // Jika sudah di penghujung pool atau pool belum terisi, coba fetch lebih banyak berita secara dinamis
+    if (_articlesPool.length <= 1 || _currentArticleIndex < 0 || _currentArticleIndex >= _articlesPool.length - 1) {
+      if (!_isFetchingMorePool) {
+        if (mounted) setState(() => _isFetchingMorePool = true);
+        await _fetchArticlesPoolIfEmpty();
+        if (mounted) setState(() => _isFetchingMorePool = false);
+      }
+
+      if (_currentArticleIndex >= _articlesPool.length - 1) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).hideCurrentSnackBar();
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("Ini adalah berita paling lama"),
+              duration: Duration(milliseconds: 1200),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+        return;
+      }
+    }
+
+    final targetIndex = _currentArticleIndex + 1;
+    final targetArticle = _articlesPool[targetIndex];
+    // Swipe Left (Geser ke Kiri / Terbaru ke Lama): Artikel lama masuk dari kanan ke kiri (isSlideRight: false)
+    _switchToArticle(targetArticle, targetIndex, isSlideRight: false);
+  }
+
+  void _switchToArticle(Article targetArticle, int targetIndex, {required bool isSlideRight}) async {
+    if (_isSwiping) return;
+    if (mounted) {
+      setState(() => _isSwiping = true);
+    }
+
+    if (_isSpeaking || _isLoading) {
+      await _stopSpeaking();
+    }
+
+    final String heroTag = 'swipe_${targetArticle.id}_${UniqueKey().toString()}';
+
+    if (!mounted) return;
+
+    Navigator.pushReplacement(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) => ArticleDetailScreen(
+          article: targetArticle,
+          heroTag: heroTag,
+          isBookmarked: false,
+          onBookmarkToggle: widget.onBookmarkToggle,
+          articleList: _articlesPool,
+          initialIndex: targetIndex,
+        ),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          // isSlideRight = true (Swipe Right / Left-to-Right gesture): Baru masuk dari KIRI (begin: Offset(-1.0, 0.0))
+          // isSlideRight = false (Swipe Left / Right-to-Left gesture): Baru masuk dari KANAN (begin: Offset(1.0, 0.0))
+          final begin = isSlideRight ? const Offset(-1.0, 0.0) : const Offset(1.0, 0.0);
+          const end = Offset.zero;
+          const curve = Curves.easeOutCubic;
+          var tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+          return SlideTransition(
+            position: animation.drive(tween),
+            child: child,
+          );
+        },
+        transitionDuration: const Duration(milliseconds: 220),
+      ),
+    );
   }
 
   void _popWithResult(BuildContext context) {
@@ -585,9 +743,9 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen>
       return;
     }
 
-    final String? apiKey = dotenv.env['GOOGLE_TTS_API_KEY'];
+    final String apiKey = _geminiApiKey;
 
-    if (apiKey == null || apiKey.isEmpty) {
+    if (apiKey.isEmpty) {
       _showDetailedErrorDialog("API Key Belum Dikonfigurasi",
           "Gunakan 'Suara Normal' untuk saat ini.");
       if (mounted) setState(() => _isLoading = false);
@@ -1105,39 +1263,10 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen>
   }
 
   void _shareArticle() {
-    final String title = widget.article.title;
-    String description = _stripHtml(widget.article.description ?? "");
-    if (description.isNotEmpty) {
-      const int maxLength = 200;
-      if (description.length > maxLength) {
-        description = description.substring(0, maxLength) + "...";
-      }
-    } else {
-      description = "Tidak ada deskripsi.";
+    final String link = widget.article.url.trim();
+    if (link.isNotEmpty) {
+      Share.share(link);
     }
-    final String author = (widget.article.author != null &&
-            widget.article.author!.isNotEmpty &&
-            widget.article.author != "Unknown Author")
-        ? widget.article.author!
-        : "Tidak diketahui";
-    final String publishDate =
-        DateFormat('d MMM y, HH:mm', 'id_ID').format(widget.article.publishedAt);
-    final String tag = "#${widget.article.category.toLowerCase()}";
-    final String link = widget.article.url;
-    final String shareContent = """
-  Judul: $title
-
-  Deskripsi: $description
-
-  Author: $author
-  Tanggal: $publishDate
-  Tag: $tag
-
-  Baca selengkapnya disini:
-  $link
-  """;
-
-    Share.share(shareContent, subject: title);
   }
 
   @override
@@ -1166,6 +1295,10 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen>
           ),
         ),
         body: GestureDetector( 
+          onHorizontalDragStart: (_) => _dragDistance = 0.0,
+          onHorizontalDragUpdate: (details) {
+            _dragDistance += details.delta.dx;
+          },
           onHorizontalDragEnd: _handleHorizontalSwipe, 
           child: Column(
             children: [
@@ -1255,6 +1388,7 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen>
                                           child: CachedNetworkImage(
                                             imageUrl: widget.article.urlToImage!,
                                             fit: BoxFit.cover,
+                                            memCacheWidth: 800,
                                             width: double.infinity,
                                             height: 250,
                                             placeholder: (c, u) => Container(
@@ -1653,7 +1787,37 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen>
         
         _buildQuickButton(context),
         const SizedBox(height: 24),
-        _buildContentWithBlockquotes(widget.article.content),
+
+        if (_isLoadingFullContent) ...[
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 20.0),
+            child: Center(
+              child: Column(
+                children: [
+                  SizedBox(
+                    width: 28,
+                    height: 28,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.5,
+                      valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFE5FF10)),
+                    ),
+                  ),
+                  SizedBox(height: 10),
+                  Text(
+                    "Memuat isi berita lengkap...",
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontStyle: FontStyle.italic,
+                      color: Colors.grey,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+
+        _buildContentWithBlockquotes(_currentArticle.content),
       ],
     );
   }
@@ -1965,13 +2129,67 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen>
     );
   }
 
+
+  String? _parseHtmlImgAttributes(Map<dynamic, dynamic> attributes) {
+    final candidates = [
+      attributes['data-src']?.toString(),
+      attributes['data-lazy-src']?.toString(),
+      attributes['data-orig-file']?.toString(),
+      attributes['data-original']?.toString(),
+      attributes['data-large-file']?.toString(),
+      attributes['data-full-url']?.toString(),
+      attributes['src']?.toString(),
+    ];
+
+    String? chosenUrl;
+    for (var candidate in candidates) {
+      if (candidate != null && candidate.trim().isNotEmpty) {
+        final trimmed = candidate.trim();
+        if (!trimmed.startsWith('data:image')) {
+          chosenUrl = trimmed;
+          break;
+        }
+      }
+    }
+
+    if (chosenUrl == null && attributes['srcset'] != null) {
+      final srcset = attributes['srcset']!.toString().trim();
+      if (srcset.isNotEmpty) {
+        final entries = srcset.split(',');
+        for (var entry in entries) {
+          final parts = entry.trim().split(RegExp(r'\s+'));
+          if (parts.isNotEmpty && parts.first.isNotEmpty && !parts.first.startsWith('data:image')) {
+            chosenUrl = parts.first;
+            break;
+          }
+        }
+      }
+    }
+
+    if (chosenUrl == null || chosenUrl.isEmpty) return null;
+    var cleaned = chosenUrl.trim();
+    if (cleaned.startsWith('data:image')) return null;
+
+    if (cleaned.startsWith('//')) {
+      cleaned = 'https:$cleaned';
+    } else if (cleaned.startsWith('/')) {
+      cleaned = 'https://www.owrite.id$cleaned';
+    }
+
+    if (!cleaned.startsWith('http://') && !cleaned.startsWith('https://')) {
+      return null;
+    }
+
+    return cleaned;
+  }
+
   Widget _buildContentWithBlockquotes(String? content) {
     final currentFontSize = _fontSizes[_currentFontSizeIndex];
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     final String? htmlData = (content != null && content.isNotEmpty)
         ? content
-        : widget.article.description;
+        : _currentArticle.description;
 
     if (htmlData == null || htmlData.isEmpty) {
       return const Text(
@@ -1986,6 +2204,59 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen>
       );
     }
 
+    // Extract inline 'bacajuga-wrap' items from HTML content
+    List<BacaJugaItem> inlineBacaJugaItems = [];
+    String processedHtmlData = htmlData;
+
+    try {
+      final doc = parse(htmlData);
+      final bacajugaWraps = doc.getElementsByClassName('bacajuga-wrap');
+      if (bacajugaWraps.isNotEmpty) {
+        for (var wrap in bacajugaWraps) {
+          final cards = wrap.getElementsByClassName('bj-card');
+          for (var card in cards) {
+            final titleEl = card.getElementsByClassName('bj-title');
+            final title = titleEl.isNotEmpty ? titleEl.first.text.trim() : '';
+            final excerptEl = card.getElementsByClassName('bj-excerpt');
+            final String? excerpt = excerptEl.isNotEmpty ? excerptEl.first.text.trim() : null;
+            String? imgUrl;
+            final imgEl = card.getElementsByTagName('img');
+            if (imgEl.isNotEmpty) {
+              imgUrl = _parseHtmlImgAttributes(imgEl.first.attributes);
+            }
+
+            // Fallback matching with _relatedArticles for real news image
+            if ((imgUrl == null || imgUrl.isEmpty || imgUrl.contains('data:image')) && _relatedArticles.isNotEmpty) {
+              final cleanTitle = title.replaceAll(RegExp(r'\.+$'), '').trim().toLowerCase();
+              final match = _relatedArticles.firstWhere(
+                (a) => a.title.toLowerCase().contains(cleanTitle) || cleanTitle.contains(a.title.toLowerCase()),
+                orElse: () => _relatedArticles.first,
+              );
+              imgUrl = match.urlToImage;
+            }
+
+            final href = card.attributes['href'];
+
+            if (title.isNotEmpty) {
+              inlineBacaJugaItems.add(BacaJugaItem(
+                title: title,
+                excerpt: excerpt,
+                imageUrl: imgUrl,
+                url: href,
+              ));
+            }
+          }
+
+          // Replace the entire DOM element tree of .bacajuga-wrap with custom tag <bacajuga-wrap></bacajuga-wrap>
+          wrap.replaceWith(dom.Element.tag('bacajuga-wrap'));
+        }
+
+        processedHtmlData = doc.body?.innerHtml ?? doc.outerHtml;
+      }
+    } catch (e) {
+      debugPrint('Error parsing bacajuga-wrap HTML: $e');
+    }
+
     final baseTextStyle = TextStyle(
       fontFamily: 'SourceSerif4',
       fontWeight: FontWeight.w400,
@@ -1997,26 +2268,165 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen>
     final Color blockquoteAccentColor = isDark ? const Color(0xFFE5FF10) : Colors.black;
 
     return Html(
-      data: htmlData,
+      data: processedHtmlData,
       extensions: [
         VideoHtmlExtension(), 
         TagExtension(
-          tagsToExtend: {"img"},
+          tagsToExtend: {"bacajuga-wrap"},
           builder: (context) {
-            final src = context.attributes['src'];
-            final imageHeroTag = src ?? UniqueKey().toString();
-            if (src == null) return const SizedBox.shrink();
-            return GestureDetector(
-              onTap: () {
-                _showFocusedImage(
+            List<BacaJugaItem> items = List.from(inlineBacaJugaItems);
+            // Ensure at least 3 items by padding with _relatedArticles
+            if (items.length < 3 && _relatedArticles.isNotEmpty) {
+              for (var rel in _relatedArticles) {
+                if (items.length >= 3) break;
+                if (!items.any((it) => it.title == rel.title)) {
+                  items.add(BacaJugaItem(
+                    title: rel.title,
+                    excerpt: rel.description,
+                    imageUrl: rel.urlToImage,
+                    url: rel.url,
+                    articleId: rel.id,
+                  ));
+                }
+              }
+            }
+
+            if (items.isEmpty) return const SizedBox.shrink();
+
+            return StackedBacaJugaWidget(
+              key: ValueKey('bacajuga_${widget.article.id}'),
+              items: items,
+              onItemTap: (item) {
+                Article? targetArticle;
+
+                // 1. Try matching by articleId in _relatedArticles or _articlesPool
+                if (item.articleId != null && item.articleId!.isNotEmpty) {
+                  for (var a in _relatedArticles) {
+                    if (a.id == item.articleId) {
+                      targetArticle = a;
+                      break;
+                    }
+                  }
+                  if (targetArticle == null) {
+                    for (var a in _articlesPool) {
+                      if (a.id == item.articleId) {
+                        targetArticle = a;
+                        break;
+                      }
+                    }
+                  }
+                }
+
+                // 2. Try matching by URL or Title if articleId didn't match
+                if (targetArticle == null) {
+                  final cleanItemTitle = item.title.trim().toLowerCase();
+                  final cleanItemUrl = item.url?.trim().toLowerCase();
+
+                  for (var a in [..._relatedArticles, ..._articlesPool]) {
+                    if ((cleanItemUrl != null && cleanItemUrl.isNotEmpty && a.url.trim().toLowerCase() == cleanItemUrl) ||
+                        (cleanItemTitle.isNotEmpty && a.title.trim().toLowerCase() == cleanItemTitle)) {
+                      targetArticle = a;
+                      break;
+                    }
+                  }
+                }
+
+                // 3. Fallback: construct an Article object directly from item metadata so it opens ArticleDetailScreen directly
+                targetArticle ??= Article(
+                  id: item.articleId ?? (item.url != null && item.url!.isNotEmpty ? item.url! : 'bacajuga_${item.title.hashCode}'),
+                  source: Source(id: 'owrite-id', name: 'Owrite ID'),
+                  title: item.title,
+                  description: item.excerpt,
+                  url: item.url ?? '',
+                  urlToImage: item.imageUrl,
+                  publishedAt: DateTime.now(),
+                  modifiedAt: DateTime.now(),
+                  category: widget.article.category,
+                );
+
+                // 4. Directly open ArticleDetailScreen!
+                Navigator.push(
                   context.buildContext!,
-                  src,
-                  imageHeroTag,
-                  widget.article.title,
-                  widget.article.category,
+                  MaterialPageRoute(
+                    builder: (_) => ArticleDetailScreen(
+                      article: targetArticle!,
+                      heroTag: 'bacajuga_${targetArticle.id}_${UniqueKey()}',
+                      isBookmarked: false,
+                      onBookmarkToggle: widget.onBookmarkToggle,
+                    ),
+                  ),
                 );
               },
-              child: Image.network(src, fit: BoxFit.contain),
+            );
+          },
+        ),
+        TagExtension(
+          tagsToExtend: {"img"},
+          builder: (context) {
+            final attributes = context.attributes;
+            final imgUrl = _parseHtmlImgAttributes(attributes);
+            if (imgUrl == null || imgUrl.isEmpty) return const SizedBox.shrink();
+
+            final imageHeroTag = '$imgUrl-${context.element?.outerHtml.hashCode}';
+            final isDark = Theme.of(context.buildContext!).brightness == Brightness.dark;
+
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 10.0),
+              child: GestureDetector(
+                onTap: () {
+                  _showFocusedImage(
+                    context.buildContext!,
+                    imgUrl,
+                    imageHeroTag,
+                    widget.article.title,
+                    widget.article.category,
+                  );
+                },
+                child: Hero(
+                  tag: imageHeroTag,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(8.0),
+                    child: CachedNetworkImage(
+                      imageUrl: imgUrl,
+                      fit: BoxFit.contain,
+                      memCacheWidth: 800,
+                      placeholder: (context, url) => Container(
+                        height: 200,
+                        color: isDark ? Colors.grey[850] : Colors.grey[200],
+                        child: const Center(
+                          child: SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(strokeWidth: 2.0),
+                          ),
+                        ),
+                      ),
+                      errorWidget: (context, url, error) => Container(
+                        height: 140,
+                        color: isDark ? Colors.grey[850] : Colors.grey[200],
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.broken_image_outlined,
+                              color: isDark ? Colors.grey[600] : Colors.grey[400],
+                              size: 36,
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              'Gambar tidak dapat dimuat',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: isDark ? Colors.grey[500] : Colors.grey[600],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             );
           },
         ),
@@ -2124,6 +2534,13 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen>
         if (url != null) _launchURL(url);
       },
       style: {
+        "bacajuga-wrap": Style(
+          margin: Margins.only(top: 16, bottom: 28),
+        ),
+        "a": Style(
+          color: const Color(0xFF2196F3),
+          textDecoration: TextDecoration.none,
+        ),
         "body": Style.fromTextStyle(baseTextStyle).copyWith(
           margin: Margins.zero,
           padding: HtmlPaddings.zero,
@@ -2252,51 +2669,59 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen>
       );
     }
 
-    if (_relatedArticles.isEmpty) {
-      return const SizedBox.shrink();
-    }
+    final displayArticles = _relatedArticles.length >= 4 
+        ? _relatedArticles.take(4).toList() 
+        : _relatedArticles;
 
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 22.0),
-          child: Divider(
-            color: Color(0xFF888888),
-            thickness: 1.0,
-            height: 0, 
-          ),
-        ),
         Container(
           width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 23.0, vertical: 24.0),
+          padding: const EdgeInsets.symmetric(vertical: 28.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                "Article Related",
-                style: TextStyle(
-                  fontFamily: 'Domine',
-                  fontWeight: FontWeight.bold,
-                  fontSize: 22,
-                  height: 1.3,
+              // Header: BERITA LAINNYA ────────
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Text(
+                      "BERITA LAINNYA",
+                      style: TextStyle(
+                        fontFamily: 'Domine',
+                        fontWeight: FontWeight.bold,
+                        fontSize: 22,
+                        letterSpacing: 0.5,
+                        color: isDark ? Colors.white : Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Container(
+                        height: 1.5,
+                        color: isDark ? Colors.white38 : Colors.black38,
+                      ),
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(height: 20),
 
-              GridView.builder(
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2, 
-                  crossAxisSpacing: 16.0, 
-                  mainAxisSpacing: 16.0, 
-                  childAspectRatio: 0.9, 
+              // Horizontal Scrollable Cards (4 Berita - Spasi Kiri Kanan Rapi)
+              SizedBox(
+                height: 395,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.only(left: 20.0, right: 20.0),
+                  itemCount: displayArticles.length,
+                  itemBuilder: (context, index) {
+                    final article = displayArticles[index];
+                    return _buildRelatedArticleCard(article, index);
+                  },
                 ),
-                itemCount: _relatedArticles.length, 
-                shrinkWrap: true, 
-                physics: const NeverScrollableScrollPhysics(), 
-                itemBuilder: (context, index) {
-                  final article = _relatedArticles[index];
-                  return _buildRelatedArticleCard(article);
-                },
               ),
             ],
           ),
@@ -2305,68 +2730,151 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen>
     );
   }
 
-  Widget _buildRelatedArticleCard(Article article) {
+  Widget _buildRelatedArticleCard(Article article, int index) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final String heroTag = 'related_${article.id}_${UniqueKey().toString()}';
+    final cardBg = isDark ? const Color(0xFF161616) : Colors.white;
+    final borderColor = isDark ? Colors.white12 : Colors.black12;
 
-    return GestureDetector(
-      onTap: () {
-        if (_isSpeaking || _isLoading) {
-          _stopSpeaking();
-        }
+    final String authorName = (article.author != null && article.author!.isNotEmpty)
+        ? article.author!
+        : 'Redaksi OWRITE';
 
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => ArticleDetailScreen(
-              article: article,
-              heroTag: heroTag,
-              isBookmarked: false,
-              onBookmarkToggle: widget.onBookmarkToggle,
+    return Container(
+      width: 270,
+      margin: const EdgeInsets.only(right: 16.0),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            if (_isSpeaking || _isLoading) {
+              _stopSpeaking();
+            }
+
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => ArticleDetailScreen(
+                  article: article,
+                  heroTag: heroTag,
+                  isBookmarked: false,
+                  onBookmarkToggle: widget.onBookmarkToggle,
+                ),
+              ),
+            );
+          },
+          borderRadius: BorderRadius.circular(5.0),
+          child: Container(
+            decoration: BoxDecoration(
+              color: cardBg,
+              borderRadius: BorderRadius.circular(5.0),
+              border: Border.all(color: borderColor, width: 1.0),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Gambar Berita di Atas (Radius 5)
+                ClipRRect(
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(5.0)),
+                  child: Hero(
+                    tag: heroTag,
+                    child: CachedNetworkImage(
+                      imageUrl: article.urlToImage ?? 'https://placehold.co/300x200/e0e0e0/9e9e9e?text=No+Image',
+                      width: double.infinity,
+                      height: 160,
+                      fit: BoxFit.cover,
+                      memCacheWidth: 400,
+                      placeholder: (context, url) => Container(
+                        height: 160,
+                        color: isDark ? Colors.grey[850] : Colors.grey[200],
+                        child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                      ),
+                      errorWidget: (context, url, error) => Container(
+                        height: 160,
+                        color: isDark ? Colors.grey[850] : Colors.grey[200],
+                        child: const Icon(Icons.newspaper_rounded, color: Colors.grey, size: 36),
+                      ),
+                    ),
+                  ),
+                ),
+
+                // Konten Teks
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.all(12.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Judul Berita (Maks 3 Baris)
+                        Text(
+                          article.title,
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontFamily: 'Domine',
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13.0,
+                            height: 1.25,
+                            color: isDark ? Colors.white : Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(height: 5),
+
+                        // Excerpt/Deskripsi Singkat (Maks 3 Baris)
+                        if (article.description != null && article.description!.isNotEmpty)
+                          Text(
+                            article.description!.replaceAll(RegExp(r'<[^>]*>'), ''),
+                            maxLines: 3,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 10.5,
+                              height: 1.25,
+                              color: isDark ? Colors.grey[400] : Colors.grey[700],
+                            ),
+                          ),
+                        
+                        const Spacer(),
+
+                        // Penulis (By Author - Tanpa Ikon)
+                        Text(
+                          "By $authorName",
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w600,
+                            color: isDark ? Colors.white : Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(height: 5),
+
+                        // Waktu Rilis
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.access_time_rounded,
+                              size: 13,
+                              color: isDark ? const Color(0xFFE5FF11) : Colors.grey[600],
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              _formatDateRelative(article.publishedAt),
+                              style: TextStyle(
+                                fontSize: 11.0,
+                                fontWeight: FontWeight.w500,
+                                color: isDark ? Colors.grey[400] : Colors.grey[600],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
-        );
-      },
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Hero(
-            tag: heroTag,
-            child: CachedNetworkImage(
-              imageUrl: article.urlToImage ?? 'https://placehold.co/300x200/e0e0e0/9e9e9e?text=No+Image',
-              height: 120,
-              width: double.infinity,
-              fit: BoxFit.cover,
-              placeholder: (context, url) => Container(
-                height: 120,
-                color: isDark ? Colors.grey[800] : Colors.grey[200],
-                child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
-              ),
-              errorWidget: (context, url, error) => Container(
-                height: 120,
-                color: isDark ? Colors.grey[800] : Colors.grey[200],
-                child: Center(child: Icon(Icons.image_not_supported, color: Colors.grey[600])),
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Expanded(
-            child: Text(
-              article.title,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontFamily: 'Domine',
-                fontWeight: FontWeight.w600,
-                fontSize: 15,
-                height: 1.4,
-                color: isDark
-                    ? Colors.white.withOpacity(0.9)
-                    : Colors.black.withOpacity(0.9),
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }

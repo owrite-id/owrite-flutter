@@ -9,12 +9,14 @@ class FeaturedArticleCard extends StatelessWidget {
   final Article article;
   final bool isBookmarked;
   final VoidCallback onBookmarkToggle;
+  final List<Article>? articleList;
 
   const FeaturedArticleCard({
     Key? key,
     required this.article,
     required this.isBookmarked,
     required this.onBookmarkToggle,
+    this.articleList,
   }) : super(key: key);
 
   @override
@@ -29,6 +31,7 @@ class FeaturedArticleCard extends StatelessWidget {
               isBookmarked: isBookmarked,
               onBookmarkToggle: onBookmarkToggle,
               heroTag: heroTag,
+              articleList: articleList,
             ),
           ),
         );
@@ -52,6 +55,7 @@ class FeaturedArticleCard extends StatelessWidget {
                   child: CachedNetworkImage(
                     imageUrl: article.urlToImage ?? '',
                     fit: BoxFit.cover,
+                    memCacheWidth: 400,
                     placeholder: (context, url) => Container(color: Colors.grey.shade300),
                     errorWidget: (context, url, error) => Container(
                       color: Colors.grey.shade300,

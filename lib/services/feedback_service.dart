@@ -10,12 +10,27 @@ class FeedbackService {
   factory FeedbackService() => _instance;
   FeedbackService._internal();
 
-  // EmailJS Configuration from .env
-  String get _emailJsServiceId => dotenv.env['EMAILJS_SERVICE_ID'] ?? '';
-  String get _emailJsTemplateId => dotenv.env['EMAILJS_TEMPLATE_ID'] ?? '';
-  String get _emailJsPublicKey => dotenv.env['EMAILJS_PUBLIC_KEY'] ?? '';
-  String get _emailJsUrl => dotenv.env['EMAILJS_URL'] ?? 'https://api.emailjs.com/api/v1.0/email/send';
-  String get _targetEmail => dotenv.env['FEEDBACK_TARGET_EMAIL'] ?? '';
+  // EmailJS Configuration
+  String get _emailJsServiceId {
+    const compileKey = String.fromEnvironment('EMAILJS_SERVICE_ID');
+    return compileKey.isNotEmpty ? compileKey : (dotenv.env['EMAILJS_SERVICE_ID'] ?? '');
+  }
+  String get _emailJsTemplateId {
+    const compileKey = String.fromEnvironment('EMAILJS_TEMPLATE_ID');
+    return compileKey.isNotEmpty ? compileKey : (dotenv.env['EMAILJS_TEMPLATE_ID'] ?? '');
+  }
+  String get _emailJsPublicKey {
+    const compileKey = String.fromEnvironment('EMAILJS_PUBLIC_KEY');
+    return compileKey.isNotEmpty ? compileKey : (dotenv.env['EMAILJS_PUBLIC_KEY'] ?? '');
+  }
+  String get _emailJsUrl {
+    const compileKey = String.fromEnvironment('EMAILJS_URL');
+    return compileKey.isNotEmpty ? compileKey : (dotenv.env['EMAILJS_URL'] ?? 'https://api.emailjs.com/api/v1.0/email/send');
+  }
+  String get _targetEmail {
+    const compileKey = String.fromEnvironment('FEEDBACK_TARGET_EMAIL');
+    return compileKey.isNotEmpty ? compileKey : (dotenv.env['FEEDBACK_TARGET_EMAIL'] ?? '');
+  }
 
   // Tracking
   DateTime? _appStartTime;

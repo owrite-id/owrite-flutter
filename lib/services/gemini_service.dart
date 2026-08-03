@@ -4,21 +4,35 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class GeminiService {
-  static const String _baseUrl =
-    "https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent";
+  // Valid Google Gemini API model REST endpoints
+  static const List<String> _models = [
+    "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
+    "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+    "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent",
+    "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent",
+  ];
+
+  static const String _fallbackKey = 'AIzaSyDa3Fo_obfSV_DTUo8OmaSUiR7U7KllYEs';
   
-  // API Key Config
+  // API Key Config with mobile release fallback
   static String get _apiKey {
-    // Runtime Key (dotenv)
+    const compileTimeKey = String.fromEnvironment('GEMINI_API_KEY');
+    if (compileTimeKey.isNotEmpty) {
+      return compileTimeKey;
+    }
     final dotenvKey = dotenv.env['GEMINI_API_KEY'];
     if (dotenvKey != null && dotenvKey.isNotEmpty) {
       return dotenvKey;
     }
-    // Fallback Key
-    return 'AIzaSyDyK862by4WfQ8xvClBIUHd39TgKArrjwE';
+    return _fallbackKey;
   }
 
   static Future<String> summarizeText(String text) async {
+    final key = _apiKey;
+    if (key.isEmpty) {
+      return _generateLocalFallback(text);
+    }
+
     final prompt = '''Ringkas teks berita berikut dalam bahasa Indonesia dengan format yang jelas dan terstruktur. 
 
 PENTING:
@@ -40,98 +54,68 @@ Format output:
 Teks yang akan diringkas:
 $text''';
 
-    try {
-      final response = await http.post(
-        Uri.parse("$_baseUrl?key=$_apiKey"),
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode({
-          "contents": [
-            {
-              "parts": [
-                {"text": prompt}
-              ]
-            }
-          ],
-          "generationConfig": {
-            "temperature": 0.3,
-            "topK": 40,
-            "topP": 0.95,
-            "maxOutputTokens": 2000,
-          },
-          "safetySettings": [
-            {
-              "category": "HARM_CATEGORY_HARASSMENT",
-              "threshold": "BLOCK_NONE"
+    // Try Gemini models sequentially until one succeeds
+    for (final modelUrl in _models) {
+      try {
+        final uri = Uri.parse("$modelUrl?key=$key");
+        final response = await http.post(
+          uri,
+          headers: {"Content-Type": "application/json"},
+          body: jsonEncode({
+            "contents": [
+              {
+                "parts": [
+                  {"text": prompt}
+                ]
+              }
+            ],
+            "generationConfig": {
+              "temperature": 0.3,
+              "topK": 40,
+              "topP": 0.95,
+              "maxOutputTokens": 1500,
             },
-            {
-              "category": "HARM_CATEGORY_HATE_SPEECH",
-              "threshold": "BLOCK_NONE"
-            },
-            {
-              "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-              "threshold": "BLOCK_NONE"
-            },
-            {
-              "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
-              "threshold": "BLOCK_NONE"
-            }
-          ]
-        }),
-      );
+          }),
+        ).timeout(const Duration(seconds: 10));
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        
-        // Response Validation
-        if (data["candidates"] == null || data["candidates"].isEmpty) {
-          // Check Prompt Feedback
-          if (data["promptFeedback"] != null) {
-            final feedback = data["promptFeedback"];
-            throw Exception("Gemini API blocked: ${feedback.toString()}");
+        if (response.statusCode == 200) {
+          final data = jsonDecode(response.body);
+          if (data["candidates"] != null &&
+              data["candidates"].isNotEmpty &&
+              data["candidates"][0]["content"] != null &&
+              data["candidates"][0]["content"]["parts"] != null &&
+              data["candidates"][0]["content"]["parts"].isNotEmpty) {
+            final summary = data["candidates"][0]["content"]["parts"][0]["text"];
+            if (summary != null && summary.toString().trim().isNotEmpty) {
+              return summary.toString().trim();
+            }
           }
-          // Check Error
-          if (data["error"] != null) {
-            throw Exception("Gemini API error: ${data["error"]}");
-          }
-          throw Exception("Gemini API: No candidates in response. Response: ${data.toString()}");
+        } else if (response.statusCode == 429) {
+          debugPrint("Gemini model $modelUrl hit 429 Rate Limit. Delaying & trying next model...");
+          await Future.delayed(const Duration(milliseconds: 1000));
+          continue;
+        } else {
+          debugPrint("Gemini model $modelUrl failed (${response.statusCode}): ${response.body}");
         }
-        
-        final candidate = data["candidates"][0];
-        
-        // Check Finish Reason
-        if (candidate["finishReason"] != null && candidate["finishReason"] != "STOP") {
-          debugPrint("Warning: finishReason = ${candidate["finishReason"]}");
-        }
-        
-        if (candidate["content"] == null) {
-          throw Exception("Gemini API: No content in candidate. Candidate: ${candidate.toString()}");
-        }
-        
-        if (candidate["content"]["parts"] == null || candidate["content"]["parts"].isEmpty) {
-          throw Exception("Gemini API: No parts in content. Content: ${candidate["content"].toString()}");
-        }
-        
-        final summary = candidate["content"]["parts"][0]["text"];
-        if (summary == null || summary.toString().trim().isEmpty) {
-          throw Exception("Gemini API: Empty summary text");
-        }
-        
-        return summary.toString().trim();
-      } else {
-        final errorBody = response.body;
-        try {
-          final errorData = jsonDecode(errorBody);
-          throw Exception("Gemini API error (${response.statusCode}): ${errorData.toString()}");
-        } catch (_) {
-          throw Exception("Gemini API error (${response.statusCode}): $errorBody");
-        }
+      } catch (e) {
+        debugPrint("Gemini model $modelUrl exception: $e");
       }
-    } catch (e) {
-      // Error Handling
-      if (e is Exception) {
-        rethrow;
-      }
-      throw Exception("Unexpected error in GeminiService: $e");
     }
+
+    // Fallback if all Gemini API endpoints fail or rate-limit
+    return _generateLocalFallback(text);
+  }
+
+  static String _generateLocalFallback(String text) {
+    final clean = text.replaceAll(RegExp(r'<[^>]*>'), '').trim();
+    if (clean.isEmpty) return 'Ringkasan tidak tersedia.';
+
+    final sentences = clean.split(RegExp(r'(?<=[.!?])\s+')).where((s) => s.trim().length > 15).toList();
+    if (sentences.isEmpty) {
+      return '• $clean';
+    }
+
+    final takeCount = sentences.length > 5 ? 4 : sentences.length;
+    return sentences.take(takeCount).map((s) => '• ${s.trim()}').join('\n');
   }
 }

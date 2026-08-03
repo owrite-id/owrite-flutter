@@ -334,6 +334,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     width: 100,
                     height: 75,
                     fit: BoxFit.cover,
+                    memCacheWidth: 200,
                     placeholder: (context, url) => Container(
                       width: 100,
                       height: 75,

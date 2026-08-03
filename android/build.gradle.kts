@@ -25,6 +25,26 @@ subprojects {
 }
 
 subprojects {
+    afterEvaluate {
+        val android = extensions.findByType(com.android.build.gradle.BaseExtension::class.java)
+        if (android != null && android.namespace == null) {
+            val manifestFile = file("src/main/AndroidManifest.xml")
+            if (manifestFile.exists()) {
+                val manifestXml = manifestFile.readText()
+                val matcher = java.util.regex.Pattern.compile("""package="([^"]+)"""").matcher(manifestXml)
+                if (matcher.find()) {
+                    android.namespace = matcher.group(1)
+                } else {
+                    android.namespace = "com.example.${project.name.replace("-", "_")}"
+                }
+            } else {
+                android.namespace = "com.example.${project.name.replace("-", "_")}"
+            }
+        }
+    }
+}
+
+subprojects {
     project.evaluationDependsOn(":app")
 }
 

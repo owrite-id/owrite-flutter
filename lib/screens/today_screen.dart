@@ -192,6 +192,7 @@ class _TodayScreenState extends State<TodayScreen> with TickerProviderStateMixin
           isBookmarked: isBookmarked,
           onBookmarkToggle: () => _toggleBookmark(article),
           heroTag: heroTag,
+          articleList: _todayArticles,
         ),
       ),
     );
@@ -306,6 +307,7 @@ class _TodayScreenState extends State<TodayScreen> with TickerProviderStateMixin
     int idx = 0;
 
     // 1. layout5 (1x, fullwidth)
+    // 1. layout5 (1x, top hero item)
     if (idx < l) {
       final a = _todayArticles[idx];
       blocks.add(
@@ -317,6 +319,7 @@ class _TodayScreenState extends State<TodayScreen> with TickerProviderStateMixin
             onBookmarkToggle: () => _toggleBookmark(a),
             index: idx,
             layout: ArticleCardLayout.layout5,
+            articleList: _todayArticles,
           ),
         ),
       );
@@ -336,6 +339,7 @@ class _TodayScreenState extends State<TodayScreen> with TickerProviderStateMixin
             onBookmarkToggle: () => _toggleBookmark(_todayArticles[idx]),
             index: idx,
             layout: ArticleCardLayout.layout1,
+            articleList: _todayArticles,
           ),
         ));
         idx++;
@@ -348,6 +352,7 @@ class _TodayScreenState extends State<TodayScreen> with TickerProviderStateMixin
           onBookmarkToggle: () => _toggleBookmark(_todayArticles[idx]),
           index: idx,
           layout: ArticleCardLayout.layout1,
+          articleList: _todayArticles,
         ));
         idx++;
       }
@@ -358,9 +363,6 @@ class _TodayScreenState extends State<TodayScreen> with TickerProviderStateMixin
     }
 
     // 3. layout5 (4x: two rows, two column each)
-    // 💡 Loop ini akan berjalan selama masih ada data untuk mengisi pola Grid Layout 5
-    // tapi kita batasi 2 baris (4 item) sesuai request awal, atau bisa diloop terus jika mau.
-    // Sesuai kode sebelumnya: 2 baris (idx 3,4,5,6)
     for (int row = 0; row < 2; row++) {
       if (idx < l) {
         final leftIdx = idx;
@@ -381,6 +383,7 @@ class _TodayScreenState extends State<TodayScreen> with TickerProviderStateMixin
                           onBookmarkToggle: () => _toggleBookmark(_todayArticles[leftIdx]),
                           index: leftIdx,
                           layout: ArticleCardLayout.layout5,
+                          articleList: _todayArticles,
                         ),
                       ),
                     ),
@@ -393,6 +396,7 @@ class _TodayScreenState extends State<TodayScreen> with TickerProviderStateMixin
                           onBookmarkToggle: () => _toggleBookmark(_todayArticles[rightIdx]),
                           index: rightIdx,
                           layout: ArticleCardLayout.layout5,
+                          articleList: _todayArticles,
                         ),
                       ),
                     ),
@@ -405,6 +409,7 @@ class _TodayScreenState extends State<TodayScreen> with TickerProviderStateMixin
                       onBookmarkToggle: () => _toggleBookmark(_todayArticles[leftIdx]),
                       index: leftIdx,
                       layout: ArticleCardLayout.layout5,
+                      articleList: _todayArticles,
                     ),
                   ),
               ],
@@ -416,7 +421,6 @@ class _TodayScreenState extends State<TodayScreen> with TickerProviderStateMixin
     }
 
     // 4. Sisanya layout1 (vertical) sampai habis
-    // 💡 Bagian ini menjamin "Tampilkan semua berita" (tidak ada limit 10)
     while (idx < l) {
       blocks.add(
         Padding(
@@ -430,6 +434,7 @@ class _TodayScreenState extends State<TodayScreen> with TickerProviderStateMixin
                 onBookmarkToggle: () => _toggleBookmark(_todayArticles[idx]),
                 index: idx,
                 layout: ArticleCardLayout.layout1,
+                articleList: _todayArticles,
               ),
             ],
           ),

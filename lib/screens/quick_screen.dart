@@ -89,11 +89,8 @@ class _QuickScreenState extends State<QuickScreen>
   void dispose() {
     _pageController.removeListener(_onPageScroll);
     _pageController.dispose();
-    // Tampilkan lagi status bar saat keluar dari QuickScreen
-    SystemChrome.setEnabledSystemUIMode(
-      SystemUiMode.manual,
-      overlays: [SystemUiOverlay.top, SystemUiOverlay.bottom],
-    );
+    // Tampilkan lagi status bar / notch saat keluar dari QuickScreen
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -307,6 +304,7 @@ class _QuickScreenState extends State<QuickScreen>
           heroTag: heroTag,
           isBookmarked: isBookmarked,
           onBookmarkToggle: () => widget.onBookmarkToggle(article),
+          articleList: _articles,
         ),
       ),
     );
@@ -323,8 +321,10 @@ class _QuickScreenState extends State<QuickScreen>
   }
 
   void _handleShare(Article article) async {
-    final text = "${article.title}\n\n${article.url}";
-    await Share.share(text);
+    final String link = article.url.trim();
+    if (link.isNotEmpty) {
+      await Share.share(link);
+    }
     await AnalyticsService.logShareEvent(article.id, article.title);
   }
 
@@ -369,10 +369,7 @@ class _QuickScreenState extends State<QuickScreen>
           : SystemUiOverlayStyle.dark,
       child: WillPopScope(
         onWillPop: () async {
-          SystemChrome.setEnabledSystemUIMode(
-            SystemUiMode.manual,
-            overlays: [SystemUiOverlay.top, SystemUiOverlay.bottom],
-          );
+          SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
           return true;
         },
         child: Scaffold(
@@ -817,10 +814,7 @@ class _FullScreenArticleCard extends StatelessWidget {
                   child: IconButton(
                     icon: Icon(Icons.arrow_back, color: textColor),
                     onPressed: () {
-                      SystemChrome.setEnabledSystemUIMode(
-                        SystemUiMode.manual,
-                        overlays: [SystemUiOverlay.top, SystemUiOverlay.bottom],
-                      );
+                      SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
                       Navigator.maybePop(context);
                     },
                     padding: EdgeInsets.zero,
@@ -1002,6 +996,7 @@ class _FullScreenArticleCard extends StatelessWidget {
                 CachedNetworkImage(
                   imageUrl: article.urlToImage!,
                   fit: BoxFit.cover,
+                  memCacheWidth: 800,
                   height: imgHeight,
                   width: media.size.width,
                   placeholder: (c, u) => Container(
@@ -1096,10 +1091,7 @@ class _FullScreenArticleCard extends StatelessWidget {
                   child: IconButton(
                     icon: Icon(Icons.arrow_back, color: textColor),
                     onPressed: () {
-                      SystemChrome.setEnabledSystemUIMode(
-                        SystemUiMode.manual,
-                        overlays: [SystemUiOverlay.top, SystemUiOverlay.bottom],
-                      );
+                      SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
                       Navigator.maybePop(context);
                     },
                     padding: EdgeInsets.zero,

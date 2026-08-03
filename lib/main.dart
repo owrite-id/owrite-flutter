@@ -183,117 +183,45 @@ void _navigateToVideo(String videoId, bool isShorts) {
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Platform Check
-  if (kIsWeb) {
-    runApp(const WebWarningApp());
-  } else {
-    // App Initialization
-    try {
-      await Firebase.initializeApp();
-      debugPrint("✅ Firebase initialized successfully");
-      FirebaseAnalytics analytics = FirebaseAnalytics.instance;
-      await analytics.logEvent(name: 'app_start');
-      debugPrint("✅ Firebase Analytics event logged");
-    } catch (e) {
-      debugPrint("⚠️ Firebase initialization error: $e");
-    }
-
-    try {
-      await dotenv.load(fileName: ".env");
-      debugPrint("✅ dotenv loaded");
-    } catch (e) {
-      debugPrint("⚠️ dotenv load error: $e");
-    }
-
-    try {
-      await NotificationService().init(onTap: _handleNotificationTap);
-      await NotificationManager().initialize();
-      BackgroundNotificationService().initialize();
-      debugPrint("✅ Notification services initialized");
-    } catch (e) {
-      debugPrint("⚠️ Notification initialization error: $e");
-    }
-
-    runApp(
-      MultiProvider(
-        providers: [
-          ChangeNotifierProvider(create: (_) => ThemeProvider()),
-          ChangeNotifierProvider(create: (_) => ArticleProvider()),
-          ChangeNotifierProvider(create: (_) => LanguageProvider()..loadLocale()),
-          ChangeNotifierProvider(create: (_) => TrashManager()),
-          ChangeNotifierProvider(create: (_) => VideoProvider()),
-        ],
-        child: const MyAppWithSplash(),
-      ),
-    );
+  // App Initialization
+  try {
+    await Firebase.initializeApp();
+    debugPrint("✅ Firebase initialized successfully");
+    FirebaseAnalytics analytics = FirebaseAnalytics.instance;
+    await analytics.logEvent(name: 'app_start');
+    debugPrint("✅ Firebase Analytics event logged");
+  } catch (e) {
+    debugPrint("⚠️ Firebase initialization error: $e");
   }
-}
 
-// Web Warning App
-class WebWarningApp extends StatelessWidget {
-  const WebWarningApp({Key? key}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Owrite - Not supported on Web',
-      debugShowCheckedModeBanner: false,
-      home: const WebWarningScreen(),
-    );
+  try {
+    await dotenv.load(fileName: ".env");
+    debugPrint("✅ dotenv loaded");
+  } catch (e) {
+    debugPrint("⚠️ dotenv load error: $e");
   }
-}
 
-class WebWarningScreen extends StatelessWidget {
-  const WebWarningScreen({Key? key}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32.0),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.warning_amber_rounded,
-                  color: Colors.yellow[700], size: 60),
-              const SizedBox(height: 24),
-              const Text(
-                "Aplikasi Owrite tidak tersedia untuk versi browser/web.",
-                style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 18),
-              const Text(
-                "Silakan buka Owrite hanya di perangkat handphone (Android/iOS).",
-                style: TextStyle(
-                  color: Colors.white70,
-                  fontSize: 16,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 24),
-              OutlinedButton.icon(
-                icon: const Icon(Icons.smartphone_rounded, color: Colors.yellow),
-                style: OutlinedButton.styleFrom(
-                    side: BorderSide(color: Colors.yellow.shade700, width: 2),
-                    foregroundColor: Colors.yellow[700],
-                    minimumSize: const Size(200, 44),
-                    backgroundColor: Colors.transparent),
-                label: const Text('OK'),
-                onPressed: () {},
-              ),
-              const SizedBox(height: 12),
-            ],
-          ),
-        ),
-      ),
-    );
+  try {
+    await NotificationService().init(onTap: _handleNotificationTap);
+    await NotificationManager().initialize();
+    BackgroundNotificationService().initialize();
+    debugPrint("✅ Notification services initialized");
+  } catch (e) {
+    debugPrint("⚠️ Notification initialization error: $e");
   }
+
+  runApp(
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => ThemeProvider()),
+        ChangeNotifierProvider(create: (_) => ArticleProvider()),
+        ChangeNotifierProvider(create: (_) => LanguageProvider()..loadLocale()),
+        ChangeNotifierProvider(create: (_) => TrashManager()),
+        ChangeNotifierProvider(create: (_) => VideoProvider()),
+      ],
+      child: const MyAppWithSplash(),
+    ),
+  );
 }
 
 // Splash Animation
@@ -541,11 +469,17 @@ class _MainScreenState extends State<MainScreen>
   void initState() {
     super.initState();
 
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     _selectedIndex = widget.initialTab;
 
     _tabController = TabController(length: 4, vsync: this);
     _tabController.addListener(() {
       if (!_tabController.indexIsChanging && mounted) {
+        if (_tabController.index != 1) {
+          SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+        } else {
+          SystemChrome.setEnabledSystemUIMode(SystemUiMode.manual, overlays: []);
+        }
         setState(() => _selectedIndex = _tabController.index);
       }
     });

@@ -62,10 +62,13 @@
             </intent-filter>
         </receiver>
         
-        <!-- Default notification icon -->
+        <!-- Default notification icon and channel -->
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_icon"
             android:resource="@mipmap/ic_launcher"/>
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="breaking_news_v2" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

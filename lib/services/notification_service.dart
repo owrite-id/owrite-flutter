@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:typed_data';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -260,7 +259,7 @@ class NotificationService {
       icon: '@mipmap/ic_launcher',
       styleInformation: BigTextStyleInformation(body),
       // Heads-up notification settings
-      fullScreenIntent: true,
+      fullScreenIntent: false,
       ticker: title,
       visibility: NotificationVisibility.public,
       category: AndroidNotificationCategory.social,

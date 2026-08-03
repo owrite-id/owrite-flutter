@@ -33,6 +33,7 @@ class ArticleCard extends StatefulWidget {
   final int? titleMaxLines;
   final bool isTodayGrid;
   final bool imageOnLeft;
+  final List<Article>? articleList;
 
   const ArticleCard({
     Key? key,
@@ -46,6 +47,7 @@ class ArticleCard extends StatefulWidget {
     this.titleMaxLines,
     this.isTodayGrid = false,
     this.imageOnLeft = false,
+    this.articleList,
   }) : super(key: key);
 
   @override
@@ -87,16 +89,17 @@ class _ArticleCardState extends State<ArticleCard> {
           isBookmarked: widget.isBookmarked,
           onBookmarkToggle: widget.onBookmarkToggle,
           heroTag: heroTag,
+          articleList: widget.articleList,
         ),
       ),
     );
   }
 
   void _shareArticle() {
-    Share.share(
-      '${widget.article.title}\n\n${widget.article.url}',
-      subject: widget.article.title,
-    );
+    final String link = widget.article.url.trim();
+    if (link.isNotEmpty) {
+      Share.share(link);
+    }
   }
 
   void _handleBookmarkToggle() {
@@ -1168,7 +1171,7 @@ class _ArticleCardState extends State<ArticleCard> {
   }
 
   Widget _buildImage(String heroTag, bool isDark, {bool useHero = true, BoxFit fit = BoxFit.cover}) {
-    Widget imageWidget = widget.article.urlToImage != null ? CachedNetworkImage(imageUrl: widget.article.urlToImage!, fit: fit, placeholder: (context, url) => Container(color: isDark ? Colors.grey[800] : Colors.grey[300], child: const Center(child: CircularProgressIndicator())), errorWidget: (context, url, error) => Container(color: isDark ? Colors.grey[800] : Colors.grey[300], child: Icon(Icons.image_not_supported, color: isDark ? Colors.grey[600] : Colors.grey[400], size: 40))) : Container(color: isDark ? Colors.grey[800] : Colors.grey[300], child: Icon(Icons.image_not_supported, color: isDark ? Colors.grey[600] : Colors.grey[400], size: 40));
+    Widget imageWidget = widget.article.urlToImage != null ? CachedNetworkImage(imageUrl: widget.article.urlToImage!, fit: fit, memCacheWidth: 400, placeholder: (context, url) => Container(color: isDark ? Colors.grey[800] : Colors.grey[300], child: const Center(child: CircularProgressIndicator())), errorWidget: (context, url, error) => Container(color: isDark ? Colors.grey[800] : Colors.grey[300], child: Icon(Icons.image_not_supported, color: isDark ? Colors.grey[600] : Colors.grey[400], size: 40))) : Container(color: isDark ? Colors.grey[800] : Colors.grey[300], child: Icon(Icons.image_not_supported, color: isDark ? Colors.grey[600] : Colors.grey[400], size: 40));
     if (useHero) return Hero(tag: heroTag, child: imageWidget);
     return imageWidget;
   }

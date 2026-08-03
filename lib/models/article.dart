@@ -94,24 +94,66 @@ class Article {
     }
     author ??= 'Unknown Author';
 
-    // --- Parsing Image ---
+    // --- Parsing Image (Robust Multi-tiered Fallback) ---
     String? imageUrl;
+
+    // Tier 1: Embedded Featured Media
     if (embedded['wp:featuredmedia'] != null && embedded['wp:featuredmedia'] is List && (embedded['wp:featuredmedia'] as List).isNotEmpty) {
       final media = embedded['wp:featuredmedia'][0];
-      if (media['media_details'] != null && media['media_details'] is Map) {
-         final mediaDetails = media['media_details'] as Map;
-         if (mediaDetails['sizes'] != null && mediaDetails['sizes'] is Map) {
+      if (media is Map) {
+        if (media['media_details'] != null && media['media_details'] is Map) {
+          final mediaDetails = media['media_details'] as Map;
+          if (mediaDetails['sizes'] != null && mediaDetails['sizes'] is Map) {
             final sizes = mediaDetails['sizes'] as Map;
-            if(sizes['medium_large'] != null && sizes['medium_large'] is Map && sizes['medium_large']['source_url'] != null) {
-               imageUrl = sizes['medium_large']['source_url'];
+            if (sizes['medium_large'] != null && sizes['medium_large'] is Map && sizes['medium_large']['source_url'] != null) {
+              imageUrl = _cleanImageUrl(sizes['medium_large']['source_url']?.toString());
+            } else if (sizes['large'] != null && sizes['large'] is Map && sizes['large']['source_url'] != null) {
+              imageUrl = _cleanImageUrl(sizes['large']['source_url']?.toString());
+            } else if (sizes['full'] != null && sizes['full'] is Map && sizes['full']['source_url'] != null) {
+              imageUrl = _cleanImageUrl(sizes['full']['source_url']?.toString());
             }
-            else if (sizes['full'] != null && sizes['full'] is Map && sizes['full']['source_url'] != null) {
-               imageUrl = sizes['full']['source_url'];
-            }
-         }
+          }
+        }
+        imageUrl ??= _cleanImageUrl(media['source_url']?.toString());
       }
-      imageUrl ??= media['source_url'];
     }
+
+    // Tier 2: Jetpack Featured Media URL
+    if (imageUrl == null && json['jetpack_featured_media_url'] != null) {
+      imageUrl = _cleanImageUrl(json['jetpack_featured_media_url']?.toString());
+    }
+
+    // Tier 3: Featured Media Source URL
+    if (imageUrl == null && json['featured_media_src_url'] != null) {
+      imageUrl = _cleanImageUrl(json['featured_media_src_url']?.toString());
+    }
+
+    // Tier 4: Yoast Head JSON -> og_image & Schema ImageObject
+    if (imageUrl == null && json['yoast_head_json'] != null && json['yoast_head_json'] is Map) {
+      final yoastData = json['yoast_head_json'] as Map;
+      if (yoastData['og_image'] != null && yoastData['og_image'] is List && (yoastData['og_image'] as List).isNotEmpty) {
+        final og = yoastData['og_image'][0];
+        if (og is Map && og['url'] != null) {
+          imageUrl = _cleanImageUrl(og['url']?.toString());
+        }
+      }
+      if (imageUrl == null && yoastData['schema'] != null && yoastData['schema'] is Map) {
+        final schema = yoastData['schema'] as Map;
+        if (schema['@graph'] != null && schema['@graph'] is List) {
+          for (var node in (schema['@graph'] as List)) {
+            if (node is Map && node['@type'] == 'ImageObject') {
+              final nodeUrl = (node['url'] ?? node['contentUrl'])?.toString();
+              imageUrl = _cleanImageUrl(nodeUrl);
+              if (imageUrl != null) break;
+            }
+          }
+        }
+      }
+    }
+
+    // Tier 5: Extract first <img> tag from content or excerpt HTML
+    imageUrl ??= _extractFirstImgSrcFromHtml(content);
+    imageUrl ??= _extractFirstImgSrcFromHtml(json['excerpt'] != null && json['excerpt']['rendered'] is String ? json['excerpt']['rendered'] : null);
 
     // --- Parsing Tags & Category ---
     String category = 'General';
@@ -309,3 +351,57 @@ String _stripHtml(String htmlString) {
   final RegExp exp = RegExp(r"<\s*[^>]*\s*>", multiLine: true, caseSensitive: false);
   return HtmlUnescape().convert(htmlString).replaceAll(exp, '').trim();
 }
+
+String? _cleanImageUrl(String? rawUrl) {
+  if (rawUrl == null || rawUrl.trim().isEmpty) return null;
+  var cleaned = HtmlUnescape().convert(rawUrl.trim());
+  if (cleaned.startsWith('data:image')) return null;
+
+  if (cleaned.startsWith('//')) {
+    cleaned = 'https:$cleaned';
+  } else if (cleaned.startsWith('/')) {
+    cleaned = 'https://www.owrite.id$cleaned';
+  }
+
+  if (!cleaned.startsWith('http://') && !cleaned.startsWith('https://')) {
+    return null;
+  }
+  return cleaned;
+}
+
+String? _extractFirstImgSrcFromHtml(String? htmlString) {
+  if (htmlString == null || htmlString.trim().isEmpty) return null;
+  final imgMatch = RegExp(r'<img[^>]+>', caseSensitive: false).firstMatch(htmlString);
+  if (imgMatch == null) return null;
+  final imgTag = imgMatch.group(0)!;
+
+  final candidates = [
+    RegExp(r"""data-src=["']([^"']+)["']""", caseSensitive: false).firstMatch(imgTag)?.group(1),
+    RegExp(r"""data-lazy-src=["']([^"']+)["']""", caseSensitive: false).firstMatch(imgTag)?.group(1),
+    RegExp(r"""data-orig-file=["']([^"']+)["']""", caseSensitive: false).firstMatch(imgTag)?.group(1),
+    RegExp(r"""data-original=["']([^"']+)["']""", caseSensitive: false).firstMatch(imgTag)?.group(1),
+    RegExp(r"""data-large-file=["']([^"']+)["']""", caseSensitive: false).firstMatch(imgTag)?.group(1),
+    RegExp(r"""data-full-url=["']([^"']+)["']""", caseSensitive: false).firstMatch(imgTag)?.group(1),
+    RegExp(r"""src=["']([^"']+)["']""", caseSensitive: false).firstMatch(imgTag)?.group(1),
+  ];
+
+  for (var candidate in candidates) {
+    final cleaned = _cleanImageUrl(candidate);
+    if (cleaned != null) return cleaned;
+  }
+
+  final srcsetMatch = RegExp(r"""srcset=["']([^"']+)["']""", caseSensitive: false).firstMatch(imgTag);
+  if (srcsetMatch != null) {
+    final srcset = srcsetMatch.group(1)!;
+    final entries = srcset.split(',');
+    for (var entry in entries) {
+      final parts = entry.trim().split(RegExp(r'\s+'));
+      if (parts.isNotEmpty) {
+        final cleaned = _cleanImageUrl(parts.first);
+        if (cleaned != null) return cleaned;
+      }
+    }
+  }
+
+  return null;
+}

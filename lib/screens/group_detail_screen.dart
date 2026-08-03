@@ -539,14 +539,15 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
             _toggleSelection(article.id); // Pilih/batal pilih dalam mode seleksi
           } else {
              // Navigasi ke detail artikel jika tidak dalam mode seleksi
-             Navigator.push(context, MaterialPageRoute(builder: (_) => ArticleDetailScreen(
-                article: article,
-                // Cek status bookmark dari daftar global yang diteruskan
-                isBookmarked: widget.allBookmarkedArticles.any((a) => a.id == article.id),
-                // Teruskan callback onToggleBookmarkAction dari parent
-                onBookmarkToggle: () => widget.onBookmarkToggle(context, article),
-                heroTag: 'bookmark-detail-${article.id}',
-             )));
+              Navigator.push(context, MaterialPageRoute(builder: (_) => ArticleDetailScreen(
+                 article: article,
+                 // Cek status bookmark dari daftar global yang diteruskan
+                 isBookmarked: widget.allBookmarkedArticles.any((a) => a.id == article.id),
+                 // Teruskan callback onToggleBookmarkAction dari parent
+                 onBookmarkToggle: () => widget.onBookmarkToggle(context, article),
+                 heroTag: 'bookmark-detail-${article.id}',
+                 articleList: widget.articles,
+              )));
           }
         },
         onLongPress: () {
@@ -565,6 +566,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                       child: CachedNetworkImage(
                         imageUrl: article.urlToImage ?? '',
                         width: 80, height: 80, fit: BoxFit.cover,
+                        memCacheWidth: 200,
                         placeholder: (context, url) => Container(width: 80, height: 80, color: Colors.grey[300]),
                         errorWidget: (context, url, error) => Container(width: 80, height: 80, color: Colors.grey[300], child: Icon(Icons.image_not_supported_rounded, color: Colors.grey[500])),
                       ),

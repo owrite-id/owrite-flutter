@@ -23,12 +23,15 @@ class YouTubeQuotaExceededException implements Exception {
 class YouTubeService {
   // API Key Config
   String get _apiKey {
+    const compileTimeKey = String.fromEnvironment('YOUTUBE_API_KEY');
+    if (compileTimeKey.isNotEmpty) {
+      return compileTimeKey;
+    }
     final envKey = dotenv.env['YOUTUBE_API_KEY'];
     if (envKey != null && envKey.isNotEmpty) {
       return envKey;
     }
-    // Fallback Key
-    return 'AIzaSyBs7LwI1rq23TMbp1f2dnDd8dBLAQGPGjw';
+    return '';
   }
   static const String _baseUrl = 'https://www.googleapis.com/youtube/v3';
 

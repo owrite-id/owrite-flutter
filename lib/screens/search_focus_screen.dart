@@ -703,7 +703,7 @@ class _SearchFocusScreenState extends State<SearchFocusScreen> {
     _performSearch(topic);
   }
 
-  void _openArticle(Article article) async {
+  void _openArticle(Article article, {List<Article>? articleList}) async {
     final heroTag = 'search-focus-article-${article.id}';
     final bool isBookmarkedInit = _bookmarkedArticleIds.contains(article.id);
 
@@ -714,6 +714,7 @@ class _SearchFocusScreenState extends State<SearchFocusScreen> {
           isBookmarked: isBookmarkedInit,
           onBookmarkToggle: () => _handleBookmarkToggle(article),
           heroTag: heroTag,
+          articleList: articleList ?? _searchResults,
         ),
       ),
     );
@@ -1061,7 +1062,8 @@ class _SearchFocusScreenState extends State<SearchFocusScreen> {
                                 index: index,
                                 layout: ArticleCardLayout.layout2,
                                 showCategoryInLayout2:
-                                    true, // <-- Show category in layout2
+                                    true,
+                                articleList: _searchResults,
                               );
                             },
                           ),

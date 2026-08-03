@@ -9,7 +9,7 @@
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
-	<string>com.medias.owrite</string>
+	<string>com.medias.owrite_news</string>
 	<key>PROJECT_ID</key>
 	<string>owrite-apps</string>
 	<key>STORAGE_BUCKET</key>

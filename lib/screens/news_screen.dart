@@ -492,6 +492,7 @@ class _NewsScreenState extends State<NewsScreen> with TickerProviderStateMixin {
               onBookmarkToggle: () => _toggleBookmark(article),
               index: index,
               layout: ArticleCardLayout.layout2,
+              articleList: articlesToShow,
             );
           }).toList(),
 

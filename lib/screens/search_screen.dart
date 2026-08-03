@@ -304,7 +304,7 @@ class _SearchScreenState extends State<SearchScreen> with TickerProviderStateMix
     _performSearch(recommendation);
   }
   
-  void _openArticle(Article article) {
+  void _openArticle(Article article, {List<Article>? articleList}) {
     final heroTag = 'search-article-${article.id}';
     final isBookmarked = widget.bookmarkedArticles.any((a) => a.id == article.id);
     
@@ -315,6 +315,7 @@ class _SearchScreenState extends State<SearchScreen> with TickerProviderStateMix
           isBookmarked: isBookmarked,
           onBookmarkToggle: () => widget.onBookmarkToggle(article),
           heroTag: heroTag,
+          articleList: articleList ?? _liveResults,
         ),
       ),
     );
@@ -505,7 +506,8 @@ class _SearchScreenState extends State<SearchScreen> with TickerProviderStateMix
                                 isBookmarked: isBookmarked,
                                 onBookmarkToggle: () => widget.onBookmarkToggle(article),
                                 index: index,
-                                layout: ArticleCardLayout.layout1, 
+                                layout: ArticleCardLayout.layout1,
+                                articleList: _liveResults, 
                               );
                             },
                           ),
@@ -777,6 +779,7 @@ class _SearchScreenState extends State<SearchScreen> with TickerProviderStateMix
                           ? CachedNetworkImage(
                               imageUrl: article.urlToImage!,
                               fit: BoxFit.cover,
+                              memCacheWidth: 400,
                               placeholder: (context, url) => Container(
                                 color: isDark ? Colors.grey[800] : Colors.grey[300],
                                 child: const Center(child: CircularProgressIndicator()),
@@ -974,6 +977,7 @@ class _SearchScreenState extends State<SearchScreen> with TickerProviderStateMix
                   ? CachedNetworkImage(
                       imageUrl: article.urlToImage!,
                       fit: BoxFit.cover,
+                      memCacheWidth: 400,
                       placeholder: (context, url) => Container(
                         color: isDark ? Colors.grey[800] : Colors.grey[300],
                         child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
@@ -1032,6 +1036,7 @@ class _SearchScreenState extends State<SearchScreen> with TickerProviderStateMix
                   CachedNetworkImage(
                     imageUrl: article.urlToImage ?? '',
                     fit: BoxFit.cover,
+                    memCacheWidth: 200,
                     width: 120,
                     height: 90,
                     placeholder: (context, url) => Container(
@@ -1183,6 +1188,7 @@ class CategoryArticlesScreen extends StatelessWidget {
             isBookmarked: isBookmarked,
             onBookmarkToggle: () => onBookmarkToggle(article),
             index: index,
+            articleList: articles,
           );
         },
       ),

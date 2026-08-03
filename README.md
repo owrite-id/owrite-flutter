@@ -288,7 +288,7 @@ sudo gem install cocoapods
 
 1. Go to [Firebase Console](https://console.firebase.google.com/)
 2. Select your Firebase project → **Add App** → **iOS**
-3. Enter Bundle ID: `com.medias.owrite`
+3. Enter Bundle ID: `com.medias.owrite_news`
 4. Download `GoogleService-Info.plist`
 5. Place it in `ios/Runner/GoogleService-Info.plist`
 
@@ -393,4 +393,114 @@ For support or inquiries, use the in-app feedback feature or contact the develop
 
 ---
 
-<p align="center"><strong>owrite</strong> · v1.0.5+3</p>
+<p align="center"><strong>owrite</strong> · v1.0.6+4</p>
+
+# How to Build & Run
+Viewed build.gradle.kts:20-41
+
+Berikut adalah panduan lengkap macam-macam perintah **Running** dan **Build** Flutter untuk Android yang paling sering digunakan:
+
+---
+
+### 1. 🚀 Perintah Running (Pengujian & Mode Pengembangan)
+
+Gunakan perintah ini saat HP/emulator terhubung ke komputer untuk menguji aplikasi secara langsung:
+
+* **Jalankan Mode Debug standar (termasuk Hot Reload):**
+  ```bash
+  flutter run
+  ```
+
+* **Jalankan pada HP / Perangkat Tertentu (jika terhubung lebih dari 1 HP):**
+  ```bash
+  flutter devices              # 1. Cek ID / nama HP yang terhubung
+  flutter run -d <device_id>   # 2. Contoh: flutter run -d 2406APNFAG
+  ```
+
+* **Jalankan Mode Release di HP (Uji Performa Asli seperti Aplikasi Jadi):**
+  ```bash
+  flutter run --release
+  ```
+
+* **Jalankan Mode Profile (Untuk Analisis Memori & Performa CPU):**
+  ```bash
+  flutter run --profile
+  ```
+
+* **Jalankan dengan Environment Variable (misal membawa API Key):**
+  ```bash
+  flutter run --dart-define=GEMINI_API_KEY="AIzaSy..."
+  ```
+
+* **Jalankan dengan Melewati Peringatan Validasi Gradle:**
+  ```bash
+  flutter run --android-skip-build-dependency-validation
+  ```
+
+---
+
+### 2. 📦 Perintah Build (Pembuatan File `.apk` & `.aab`)
+
+Gunakan perintah ini jika ingin menghasilkan file mentahan aplikasi untuk dibagikan atau diunggah ke Play Store:
+
+#### A. Pembuatan File APK (`.apk`)
+
+* **Build APK Release Universal (File `.apk` untuk Dibagikan ke Pengguna):**
+  ```bash
+  flutter build apk --release
+  ```
+  📍 *Lokasi File Output:* `build/app/outputs/flutter-apk/app-release.apk`
+
+* **Build APK Split per Arsitektur CPU (Ukuran File APK Lebih Kecil & Ringan):**
+  ```bash
+  flutter build apk --split-per-abi
+  ```
+  📍 *Menghasilkan 3 file terpisah untuk jenis prosessor HP (misal: `app-arm64-v8a-release.apk`).*
+
+* **Build APK Mode Debug (Hanya untuk Testing Internal):**
+  ```bash
+  flutter build apk --debug
+  ```
+
+* **Build APK Release dengan Variabel Kunci / API Key:**
+  ```bash
+  flutter build apk --release --dart-define=GEMINI_API_KEY="AIzaSy..."
+  ```
+
+---
+
+#### B. Pembuatan Android App Bundle (`.aab`) — *Wajib untuk Google Play Console*
+
+* **Build App Bundle Release (File Format `.aab` untuk Diunggah ke Play Store):**
+  ```bash
+  flutter build appbundle --release
+  ```
+  📍 *Lokasi File Output:* `build/app/outputs/bundle/release/app-release.aab`
+
+---
+
+### 3. 🧹 Perintah Pembersihan & Diagnostik Tambahan
+
+Gunakan perintah ini jika mengalami kendala error build atau Gradle macet:
+
+* **Mengecek HP / Emulator yang Terhubung:**
+  ```bash
+  flutter devices
+  ```
+
+* **Membersihkan Cache Build (Mengatasi Error Kompilasi/Gradle):**
+  ```bash
+  flutter clean
+  ```
+
+* **Mengunduh Ulang Package/Dependency (`pubspec.yaml`):**
+  ```bash
+  flutter pub get
+  ```
+
+* **Rangkaian Pembersihan & Re-build Lengkap (Rekomendasi jika ada Masalah):**
+  ```bash
+  flutter clean
+  flutter pub get
+  flutter build apk --release
+  ```
