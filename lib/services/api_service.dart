@@ -6,10 +6,12 @@ import '../utils/app_exceptions.dart';
 import 'dart:async';
 
 class ApiService {
-  static const String _baseUrl = 'https://www.owrite.id/wp-json/wp/v2';
+  static const String _baseUrl = 'https://cms.owrite.id/wp-json/wp/v2';
   static const String _apiKey = 'AIzaSyDa3Fo_obfSV_DTUo8OmaSUiR7U7KllYEs';
 
   static const Map<String, int?> _categoryNameToIdMap = {
+    'TOP NEWS': null,
+    'EKONOMI BISNIS': 17,
     'HYPE': 16,
     'OLAHRAGA': 15,
     'EKBIS': 17,

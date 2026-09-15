@@ -4,7 +4,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 
 class AuthService {
-  static const String _baseUrl = 'https://www.owrite.id/wp-json/wp/v2';
+  static const String _baseUrl = 'https://cms.owrite.id/wp-json/wp/v2';
   static const String _keyIsLoggedIn = 'is_logged_in';
   static const String _keyUsername = 'username';
   static const String _keyUserId = 'user_id';

@@ -37,6 +37,8 @@ import 'quick_screen.dart';
 import 'in_app_browser_screen.dart';
 import '../services/reading_tracker_service.dart';
 import '../widgets/card_baca_juga.dart';
+import '../services/open_voice_service.dart';
+import 'package:flutter_tts/flutter_tts.dart';
 
 class ArticleDetailScreen extends StatefulWidget {
   final Article article;
@@ -711,29 +713,109 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen>
   }
 
   Future<void> _toggleSpeech() async {
-    if (_isLoading) return; 
-
-    if (_isSpeaking) {
-      await _stopSpeaking();
-    } else {
-      _fullTextForSpeech = _prepareTextForSpeech();
-      await _startGeminiTts();
-    }
+    _showInfoSnackBar('Fitur dengarkan artikel sedang dalam perbaikan.');
   }
 
-  Future<void> _startGeminiTts() async {
-    if (_geminiApiKey == "AIzaSyDa3Fo_obfSV_DTUo8OmaSUiR7U7KllYEs" || _geminiApiKey.isEmpty) {
-      _showDetailedErrorDialog("API Key Belum Dikonfigurasi",
-          "Gunakan 'Suara Normal' untuk saat ini.");
-      return;
-    }
-
+  void _showInfoSnackBar(String message) {
     if (!mounted) return;
-    setState(() {
-      _isLoading = true;  
-    });
+    ScaffoldMessenger.of(context).removeCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.build_rounded, color: Colors.white, size: 20),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                message,
+                style: const TextStyle(fontWeight: FontWeight.w600, color: Colors.white),
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: const Color(0xFFC82327),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  }
 
-    await _fetchAndPlayGeminiTts();
+  final FlutterTts _flutterTts = FlutterTts();
+
+  Future<void> _playFlutterLocalTts() async {
+    try {
+      await _flutterTts.setLanguage("id-ID");
+      await _flutterTts.setSpeechRate(0.46);
+      await _flutterTts.setVolume(1.0);
+      await _flutterTts.setPitch(0.95);
+
+      // Attempt to select an HD network voice for human-like speech intonation
+      try {
+        final voices = await _flutterTts.getVoices;
+        if (voices is List) {
+          final indonesianVoices = voices.where((v) {
+            final locale = (v['locale'] ?? '').toString().toLowerCase();
+            return locale.contains('id') || locale.contains('ind');
+          }).toList();
+
+          if (indonesianVoices.isNotEmpty) {
+            final hdVoice = indonesianVoices.firstWhere(
+              (v) => (v['name'] ?? '').toString().toLowerCase().contains('network') ||
+                     (v['name'] ?? '').toString().toLowerCase().contains('hd') ||
+                     (v['name'] ?? '').toString().toLowerCase().contains('wavenet'),
+              orElse: () => indonesianVoices.first,
+            );
+            if (hdVoice != null && hdVoice is Map) {
+              await _flutterTts.setVoice({
+                "name": hdVoice["name"].toString(),
+                "locale": hdVoice["locale"].toString(),
+              });
+              debugPrint("🎙️ Selected HD Local TTS Voice: ${hdVoice["name"]}");
+            }
+          }
+        }
+      } catch (voiceErr) {
+        debugPrint("Notice: HD local voice search: $voiceErr");
+      }
+
+      _flutterTts.setCompletionHandler(() {
+        if (mounted) {
+          setState(() {
+            _isSpeaking = false;
+            _isLoading = false;
+          });
+        }
+      });
+
+      _flutterTts.setErrorHandler((msg) {
+        if (mounted) {
+          setState(() {
+            _isSpeaking = false;
+            _isLoading = false;
+          });
+        }
+      });
+
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _isSpeaking = true;
+        });
+      }
+
+      final normalizedText = OpenVoiceService.prepareText(widget.article.title, _fullTextForSpeech);
+      await _flutterTts.speak(normalizedText);
+    } catch (e) {
+      debugPrint("Flutter local TTS error: $e");
+      _showErrorSnackBar("Gagal memutarkan audio TTS");
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _isSpeaking = false;
+        });
+      }
+    }
   }
 
   Future<void> _fetchAndPlayGeminiTts() async {
@@ -847,6 +929,7 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen>
   Future<void> _stopSpeaking() async {
     try {
       await _audioPlayer.stop();
+      await _flutterTts.stop();
       if (mounted) {
         setState(() {
           _isSpeaking = false;
@@ -2442,8 +2525,9 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen>
             final pTags = el.getElementsByTagName('p');
             final citeTags = el.getElementsByTagName('cite');
 
-            final String mainQuote =
-                pTags.map((p) => p.text.trim()).join('\n').trim();
+            final String rawQuote = pTags.isNotEmpty
+                ? pTags.map((p) => p.text.trim()).join('\n').trim()
+                : el.text.trim();
             final String? authorQuote = citeTags.isNotEmpty
                 ? citeTags.first.text.trim()
                 : null;
@@ -2451,79 +2535,44 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen>
             final isDark = Theme.of(context.buildContext!).brightness == Brightness.dark;
             final currentFontSize = _fontSizes[_currentFontSizeIndex];
 
-            final Color blockquoteAccentColor = isDark ? const Color(0xFFE5FF10) : Colors.black;
+            if (rawQuote.isEmpty) return const SizedBox.shrink();
 
-            if (mainQuote.isEmpty) return const SizedBox.shrink();
+            final String cleanQuote = rawQuote
+                .replaceAll(RegExp(r'^[“"”\s]+'), '')
+                .replaceAll(RegExp(r'[“"”\s]+$'), '')
+                .trim();
+            final String formattedQuote = '“$cleanQuote”';
 
-            return Container(
-              margin: const EdgeInsets.only(bottom: 16, top: 8),
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: isDark ? Colors.grey[850]?.withOpacity(0.5) : Colors.grey[100],
-                borderRadius: BorderRadius.vertical(top: Radius.circular(16), bottom: Radius.circular(10)),
-                border: Border(
-                  left: BorderSide(
-                    color: blockquoteAccentColor,
-                    width: 4,
-                  ),
-                ),
-              ),
-              child: Row(
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12.0),
+              child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(
-                    Icons.format_quote,
-                    color: blockquoteAccentColor,
-                    size: 24,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          mainQuote,
-                          style: TextStyle(
-                            fontFamily: 'SourceSerif4',
-                            fontWeight: FontWeight.w300,
-                            fontSize: currentFontSize - 1,
-                            height: 1.6,
-                            fontStyle: FontStyle.italic,
-                            color: isDark ? Colors.grey[200] : Colors.grey[900],
-                          ),
-                        ),
-                        if (authorQuote != null && authorQuote.isNotEmpty) ...[
-                          const SizedBox(height: 8),
-                          Padding(
-                            padding: const EdgeInsets.only(left: 0.0),
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Container(
-                                  width: 28,
-                                  height: 1.2,
-                                  margin: const EdgeInsets.only(top: 11, right: 8),
-                                  color: blockquoteAccentColor,
-                                ),
-                                Expanded(
-                                  child: Text(
-                                    authorQuote,
-                                    style: TextStyle(
-                                      fontFamily: 'SourceSerif4',
-                                      fontWeight: FontWeight.normal,
-                                      fontSize: currentFontSize - 2,
-                                      height: 1.5,
-                                      color: isDark ? Colors.grey[400] : Colors.grey[700],
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ],
+                  Text(
+                    formattedQuote,
+                    style: TextStyle(
+                      fontFamily: 'SourceSerif4',
+                      fontWeight: FontWeight.bold,
+                      fontStyle: FontStyle.normal,
+                      fontSize: currentFontSize,
+                      height: 1.6,
+                      color: isDark ? Colors.white : Colors.black,
                     ),
                   ),
+                  if (authorQuote != null && authorQuote.isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      "— $authorQuote",
+                      style: TextStyle(
+                        fontFamily: 'SourceSerif4',
+                        fontWeight: FontWeight.w600,
+                        fontStyle: FontStyle.normal,
+                        fontSize: currentFontSize - 2,
+                        height: 1.4,
+                        color: isDark ? Colors.grey[400] : Colors.grey[700],
+                      ),
+                    ),
+                  ],
                 ],
               ),
             );
@@ -2534,6 +2583,19 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen>
         if (url != null) _launchURL(url);
       },
       style: {
+        "blockquote": Style(
+          margin: Margins.only(top: 12, bottom: 16),
+          padding: HtmlPaddings.zero,
+          backgroundColor: Colors.transparent,
+          border: const Border(),
+        ),
+        "blockquote p": Style(
+          fontFamily: 'SourceSerif4',
+          fontWeight: FontWeight.bold,
+          fontStyle: FontStyle.normal,
+          margin: Margins.only(bottom: 8),
+          color: isDark ? Colors.white : Colors.black,
+        ),
         "bacajuga-wrap": Style(
           margin: Margins.only(top: 16, bottom: 28),
         ),

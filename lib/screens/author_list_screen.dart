@@ -40,7 +40,7 @@ class _AuthorListScreenState extends State<AuthorListScreen> {
   }
 
   Future<void> _fetchAuthors() async {
-    const String apiUrl = 'https://www.owrite.id/wp-json/wp/v2/users';
+    const String apiUrl = 'https://cms.owrite.id/wp-json/wp/v2/users';
     try {
       final response = await http.get(Uri.parse(apiUrl));
 
