@@ -1,1 +1,4 @@
 .gemini/
+.idea
+.dart_tool
+build
