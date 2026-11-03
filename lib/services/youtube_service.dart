@@ -1,4 +1,5 @@
 import 'dart:convert';
+import '../config/app_config.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../models/video.dart';
@@ -21,18 +22,7 @@ class YouTubeQuotaExceededException implements Exception {
 }
 
 class YouTubeService {
-  // API Key Config
-  String get _apiKey {
-    const compileTimeKey = String.fromEnvironment('YOUTUBE_API_KEY');
-    if (compileTimeKey.isNotEmpty) {
-      return compileTimeKey;
-    }
-    final envKey = dotenv.env['YOUTUBE_API_KEY'];
-    if (envKey != null && envKey.isNotEmpty) {
-      return envKey;
-    }
-    return '';
-  }
+  String get _apiKey => AppConfig.youtubeApiKey;
   static const String _baseUrl = 'https://www.googleapis.com/youtube/v3';
 
   final http.Client _client;

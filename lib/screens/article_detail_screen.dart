@@ -1,4 +1,5 @@
 import 'dart:async';
+import '../config/app_config.dart';
 import 'dart:io';
 import 'dart:ui' as ui;
 import 'dart:convert';
@@ -64,10 +65,7 @@ class ArticleDetailScreen extends StatefulWidget {
 
 class _ArticleDetailScreenState extends State<ArticleDetailScreen>
     with TickerProviderStateMixin {
-  String get _geminiApiKey {
-    const compileKey = String.fromEnvironment('GOOGLE_TTS_API_KEY');
-    return compileKey.isNotEmpty ? compileKey : (dotenv.env['GOOGLE_TTS_API_KEY'] ?? '');
-  }
+  String get _geminiApiKey => AppConfig.googleTtsApiKey;
   final ApiService _apiService = ApiService();
   late ScrollController _scrollController;
   late AnimationController _fadeController;
@@ -2256,7 +2254,7 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen>
     if (cleaned.startsWith('//')) {
       cleaned = 'https:$cleaned';
     } else if (cleaned.startsWith('/')) {
-      cleaned = 'https://www.owrite.id$cleaned';
+      cleaned = '${AppConfig.siteUrl}$cleaned';
     }
 
     if (!cleaned.startsWith('http://') && !cleaned.startsWith('https://')) {

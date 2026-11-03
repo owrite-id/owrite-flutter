@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../config/app_config.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../utils/auth_service.dart';
@@ -84,7 +85,7 @@ class _NativeLoginScreenState extends State<NativeLoginScreen> {
   Future<Map<String, dynamic>> _loginWithWordPress(String username, String password) async {
     try {
       // 1. Coba login dengan WordPress REST API
-      final loginUrl = Uri.parse('https://www.owrite.id/wp-json/jwt-auth/v1/token');
+      final loginUrl = Uri.parse(AppConfig.jwtTokenUrl);
       
       final loginResponse = await http.post(
         loginUrl,
@@ -103,7 +104,7 @@ class _NativeLoginScreenState extends State<NativeLoginScreen> {
         final token = loginData['token'];
         
         // 2. Ambil data user menggunakan token
-        final userUrl = Uri.parse('https://www.owrite.id/wp-json/wp/v2/users/me');
+        final userUrl = Uri.parse('${AppConfig.siteApiUrl}/users/me');
         final userResponse = await http.get(
           userUrl,
           headers: {
@@ -140,7 +141,7 @@ class _NativeLoginScreenState extends State<NativeLoginScreen> {
   Future<Map<String, dynamic>> _loginWithBasicAuth(String username, String password) async {
     try {
       // Metode alternatif: Ambil daftar user dan cocokkan
-      final usersUrl = Uri.parse('https://www.owrite.id/wp-json/wp/v2/users?per_page=100');
+      final usersUrl = Uri.parse('${AppConfig.siteApiUrl}/users?per_page=100');
       final response = await http.get(usersUrl).timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200) {
@@ -495,7 +496,7 @@ class _NativeLoginScreenState extends State<NativeLoginScreen> {
             ),
           ),
           content: Text(
-            'Untuk membuat akun baru, silakan kunjungi website Owrite di:\n\nhttps://www.owrite.id/register',
+            'Untuk membuat akun baru, silakan kunjungi website Owrite di:\n\n${AppConfig.siteUrl}/register',
             style: TextStyle(
               color: isDark ? Colors.grey[300] : Colors.grey[700],
             ),

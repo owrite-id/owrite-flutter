@@ -1,4 +1,5 @@
 import 'dart:convert';
+import '../config/app_config.dart';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
@@ -7,10 +8,7 @@ import 'package:path_provider/path_provider.dart';
 /// Service untuk menangani komunikasi dengan Backend Engine Open Voice Neural TTS (Orpheus-TTS)
 class OpenVoiceService {
   /// Primary Backend API URLs to try
-  static const List<String> apiEndpoints = [
-    'https://sinpo.id/api/tts',
-    'https://www.sinpo.id/api/tts',
-  ];
+  static List<String> get apiEndpoints => AppConfig.openVoiceApiUrls;
 
   /// Mapping Akronim & Singkatan Bahasa Indonesia (Orpheus-TTS Normalizer)
   static const Map<String, String> acronymMap = {

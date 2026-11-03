@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../config/app_config.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:url_launcher/url_launcher.dart';
@@ -40,7 +41,7 @@ class _AuthorListScreenState extends State<AuthorListScreen> {
   }
 
   Future<void> _fetchAuthors() async {
-    const String apiUrl = 'https://cms.owrite.id/wp-json/wp/v2/users';
+    final String apiUrl = '${AppConfig.apiBaseUrl}/users';
     try {
       final response = await http.get(Uri.parse(apiUrl));
 

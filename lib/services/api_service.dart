@@ -1,4 +1,5 @@
 import 'dart:convert';
+import '../config/app_config.dart';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import '../models/article.dart';
@@ -6,8 +7,8 @@ import '../utils/app_exceptions.dart';
 import 'dart:async';
 
 class ApiService {
-  static const String _baseUrl = 'https://cms.owrite.id/wp-json/wp/v2';
-  static const String _apiKey = 'AIzaSyDa3Fo_obfSV_DTUo8OmaSUiR7U7KllYEs';
+  static String get _baseUrl => AppConfig.apiBaseUrl;
+  static String get _apiKey => AppConfig.geminiApiKey;
 
   static const Map<String, int?> _categoryNameToIdMap = {
     'TOP NEWS': null,

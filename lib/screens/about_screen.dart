@@ -1,4 +1,5 @@
 import 'dart:async';
+import '../config/app_config.dart';
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import '../widgets/theme_toggle_button.dart';
@@ -338,7 +339,7 @@ class _AboutScreenState extends State<AboutScreen> {
                             title: 'Follow Social Media',
                             onTap: () {
                               launchUrl(
-                                Uri.parse('https://www.owrite.id/'), 
+                                Uri.parse('${AppConfig.siteUrl}/'), 
                                 mode: LaunchMode.externalApplication,
                               );
                             },

@@ -1,1 +1,12 @@
 .gemini/
+
+# Environment (secrets) - use .env.example as the template
+.env
+.env.*
+!.env.example
+
+# Flutter generated
+.dart_tool/
+.flutter-plugins-dependencies
+build/
+.idea/

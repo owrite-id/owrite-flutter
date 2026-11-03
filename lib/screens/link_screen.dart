@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../config/app_config.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -222,7 +223,7 @@ class _LinkScreenState extends State<LinkScreen> {
               child: _WebsiteCard(
                 isDark: isDark,
                 onTap: () =>
-                    _handleLinkTap("Website", "https://www.owrite.id/"),
+                    _handleLinkTap("Website", '${AppConfig.siteUrl}/'),
               ),
             ),
           ),
