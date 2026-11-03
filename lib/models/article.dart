@@ -1,4 +1,5 @@
 import 'package:html_unescape/html_unescape.dart';
+import '../config/app_config.dart';
 
 class Article {
   final String id;
@@ -324,7 +325,7 @@ class Article {
       final slug = name.toLowerCase()
           .replaceAll(RegExp(r'[^a-z0-9\s-]'), '')
           .replaceAll(RegExp(r'\s+'), '-');
-      return {'name': name, 'url': 'https://www.owrite.id/author/$slug/'};
+      return {'name': name, 'url': '${AppConfig.siteUrl}/author/$slug/'};
     }).toList();
   }
 }
@@ -360,7 +361,7 @@ String? _cleanImageUrl(String? rawUrl) {
   if (cleaned.startsWith('//')) {
     cleaned = 'https:$cleaned';
   } else if (cleaned.startsWith('/')) {
-    cleaned = 'https://www.owrite.id$cleaned';
+    cleaned = '${AppConfig.siteUrl}$cleaned';
   }
 
   if (!cleaned.startsWith('http://') && !cleaned.startsWith('https://')) {
@@ -404,4 +405,4 @@ String? _extractFirstImgSrcFromHtml(String? htmlString) {
   }
 
   return null;
-}
+}

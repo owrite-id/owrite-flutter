@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../config/app_config.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:http/http.dart' as http;
@@ -25,9 +26,9 @@ class _CookieLoginScreenState extends State<CookieLoginScreen> {
   String? _errorMessage;
 
   // URL Login WordPress
-  static const String _loginUrl = 'https://www.owrite.id/writehere/';
-  static const String _baseUrl = 'https://www.owrite.id';
-  static const String _userMeEndpoint = 'https://www.owrite.id/wp-json/wp/v2/users/me';
+  static String get _loginUrl => AppConfig.loginPageUrl;
+  static String get _baseUrl => AppConfig.siteUrl;
+  static String get _userMeEndpoint => '${AppConfig.siteApiUrl}/users/me';
 
   @override
   void initState() {

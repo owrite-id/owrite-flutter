@@ -1,4 +1,5 @@
 import 'dart:convert';
+import '../config/app_config.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
@@ -11,26 +12,11 @@ class FeedbackService {
   FeedbackService._internal();
 
   // EmailJS Configuration
-  String get _emailJsServiceId {
-    const compileKey = String.fromEnvironment('EMAILJS_SERVICE_ID');
-    return compileKey.isNotEmpty ? compileKey : (dotenv.env['EMAILJS_SERVICE_ID'] ?? '');
-  }
-  String get _emailJsTemplateId {
-    const compileKey = String.fromEnvironment('EMAILJS_TEMPLATE_ID');
-    return compileKey.isNotEmpty ? compileKey : (dotenv.env['EMAILJS_TEMPLATE_ID'] ?? '');
-  }
-  String get _emailJsPublicKey {
-    const compileKey = String.fromEnvironment('EMAILJS_PUBLIC_KEY');
-    return compileKey.isNotEmpty ? compileKey : (dotenv.env['EMAILJS_PUBLIC_KEY'] ?? '');
-  }
-  String get _emailJsUrl {
-    const compileKey = String.fromEnvironment('EMAILJS_URL');
-    return compileKey.isNotEmpty ? compileKey : (dotenv.env['EMAILJS_URL'] ?? 'https://api.emailjs.com/api/v1.0/email/send');
-  }
-  String get _targetEmail {
-    const compileKey = String.fromEnvironment('FEEDBACK_TARGET_EMAIL');
-    return compileKey.isNotEmpty ? compileKey : (dotenv.env['FEEDBACK_TARGET_EMAIL'] ?? '');
-  }
+  String get _emailJsServiceId => AppConfig.emailJsServiceId;
+  String get _emailJsTemplateId => AppConfig.emailJsTemplateId;
+  String get _emailJsPublicKey => AppConfig.emailJsPublicKey;
+  String get _emailJsUrl => AppConfig.emailJsUrl;
+  String get _targetEmail => AppConfig.feedbackTargetEmail;
 
   // Tracking
   DateTime? _appStartTime;

@@ -238,12 +238,8 @@ cd owrite
 # Install dependencies
 flutter pub get
 
-# Create .env in root directory
-cat > .env << EOF
-API_BASE_URL=your_api_url
-GEMINI_API_KEY=your_gemini_api_key
-YOUTUBE_API_KEY=your_youtube_api_key
-EOF
+# Create .env in root directory from the template, then fill in the values
+cp .env.example .env
 
 # Run
 flutter run

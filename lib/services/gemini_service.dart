@@ -1,4 +1,5 @@
 import 'dart:convert';
+import '../config/app_config.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -12,20 +13,7 @@ class GeminiService {
     "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent",
   ];
 
-  static const String _fallbackKey = 'AIzaSyDa3Fo_obfSV_DTUo8OmaSUiR7U7KllYEs';
-  
-  // API Key Config with mobile release fallback
-  static String get _apiKey {
-    const compileTimeKey = String.fromEnvironment('GEMINI_API_KEY');
-    if (compileTimeKey.isNotEmpty) {
-      return compileTimeKey;
-    }
-    final dotenvKey = dotenv.env['GEMINI_API_KEY'];
-    if (dotenvKey != null && dotenvKey.isNotEmpty) {
-      return dotenvKey;
-    }
-    return _fallbackKey;
-  }
+  static String get _apiKey => AppConfig.geminiApiKey;
 
   static Future<String> summarizeText(String text) async {
     final key = _apiKey;

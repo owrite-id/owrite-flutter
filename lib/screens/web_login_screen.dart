@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../config/app_config.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'dart:convert';
@@ -35,7 +36,7 @@ class _WebLoginScreenState extends State<WebLoginScreen> {
     try {
       // Ambil cookies dari website
       final cookies = await _cookieManager.getCookies(
-        url: WebUri('https://www.owrite.id'),
+        url: WebUri(AppConfig.siteUrl),
       );
 
       debugPrint('🍪 Cookies found: ${cookies.length}');
@@ -94,7 +95,7 @@ class _WebLoginScreenState extends State<WebLoginScreen> {
             if (nonce) {
               headers['X-WP-Nonce'] = nonce;
             }
-            const response = await fetch('https://www.owrite.id/wp-json/wp/v2/users/me', {
+            const response = await fetch('${AppConfig.siteApiUrl}/users/me', {
               method: 'GET',
               credentials: 'include',
               headers
@@ -246,7 +247,7 @@ class _WebLoginScreenState extends State<WebLoginScreen> {
                 Expanded(
                   child: InAppWebView(
                     initialUrlRequest: URLRequest(
-                      url: WebUri('https://www.owrite.id/writehere/'),
+                      url: WebUri(AppConfig.loginPageUrl),
                     ),
                     initialSettings: InAppWebViewSettings(
                       useShouldOverrideUrlLoading: true,
